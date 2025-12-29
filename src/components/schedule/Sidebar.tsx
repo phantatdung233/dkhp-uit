@@ -120,16 +120,6 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
     }
   };
 
-  // Handle type switch
-  const handleTypeSwitch = (e: React.MouseEvent, type: "theory" | "practical") => {
-    e.stopPropagation();
-    if (!isClickSelected) {
-      setClickSelectedCourse(course);
-    }
-    useScheduleStore.setState({ clickSelectedType: type });
-    updateHighlightedSlots();
-  };
-
   const colorClass = COURSE_COLORS[colorIndex];
 
   return (
@@ -162,26 +152,12 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
 
         <div className="mt-2 flex flex-wrap gap-1">
           {course.hasTheoryClass && (
-            <Badge
-              variant={
-                isClickSelected && (clickSelectedType === "theory" || (!clickSelectedType && !pendingTheorySection))
-                  ? "info"
-                  : "outline"
-              }
-              className={cn("text-xs", isClickSelected && "cursor-pointer hover:bg-blue-100")}
-              onClick={(e) => isClickSelected && handleTypeSwitch(e, "theory")}
-            >
+            <Badge variant="info" className="text-xs pointer-events-none">
               Lý thuyết
             </Badge>
           )}
           {course.hasPracticalClass && (
-            <Badge
-              variant={
-                isClickSelected && (clickSelectedType === "practical" || pendingTheorySection) ? "warning" : "outline"
-              }
-              className={cn("text-xs", isClickSelected && "cursor-pointer hover:bg-yellow-100")}
-              onClick={(e) => isClickSelected && handleTypeSwitch(e, "practical")}
-            >
+            <Badge variant="warning" className="text-xs pointer-events-none">
               Thực hành
             </Badge>
           )}
