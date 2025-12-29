@@ -227,7 +227,7 @@ export function getHighlightedSlots(
 
   // Quan trọng: Nếu một slot vừa có lớp khả dụng vừa có conflict (do nhiều section khác nhau),
   // thì ưu tiên hiển thị là có lớp khả dụng (hasConflict = false để có thể click)
-  for (const slot of slotMap.values()) {
+  for (const slot of Array.from(slotMap.values())) {
     if (slot.availableSections.length > 0) {
       slot.hasConflict = false;
     }

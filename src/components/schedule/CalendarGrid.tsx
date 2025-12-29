@@ -34,11 +34,11 @@ export function CalendarGrid() {
     removeClassFromSchedule,
     highlightedSlots,
     clickSelectedCourse,
-    filterOptions,
+    clickSelectedType,
     pendingTheorySection,
+    filterOptions,
   } = useScheduleStore();
 
-  // Phân loại các lớp theo loại thời gian
   const { regularClasses, flexibleClasses } = useMemo(() => {
     const regular: ScheduledClass[] = [];
     const flexible: ScheduledClass[] = [];
@@ -86,6 +86,12 @@ export function CalendarGrid() {
       flexibleSections = flexibleSections.filter(
         (s) => s.isPractical && s.classCode.startsWith(pendingTheorySection.classCode + ".")
       );
+    }
+    // Nếu có clickSelectedType cụ thể
+    else if (clickSelectedType === "practical") {
+      flexibleSections = flexibleSections.filter((s) => s.isPractical);
+    } else if (clickSelectedType === "theory") {
+      flexibleSections = flexibleSections.filter((s) => !s.isPractical);
     }
     // Nếu đã có LT (ở lịch thường hoặc linh hoạt), chỉ hiện TH khớp mã
     else if (registeredTheory) {

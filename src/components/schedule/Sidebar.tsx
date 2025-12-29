@@ -89,10 +89,12 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
   const {
     scheduledClasses,
     clickSelectedCourse,
+    clickSelectedType,
     setClickSelectedCourse,
     setClickSelectedLecturer,
     pendingTheorySection,
     clearClickSelection,
+    updateHighlightedSlots,
   } = useScheduleStore();
 
   // Check if course is registered
@@ -116,6 +118,16 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
       setClickSelectedCourse(course);
       setClickSelectedLecturer(null);
     }
+  };
+
+  // Handle type switch
+  const handleTypeSwitch = (e: React.MouseEvent, type: "theory" | "practical") => {
+    e.stopPropagation();
+    if (!isClickSelected) {
+      setClickSelectedCourse(course);
+    }
+    useScheduleStore.setState({ clickSelectedType: type });
+    updateHighlightedSlots();
   };
 
   const colorClass = COURSE_COLORS[colorIndex];
@@ -150,12 +162,26 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
 
         <div className="mt-2 flex flex-wrap gap-1">
           {course.hasTheoryClass && (
-            <Badge variant="info" className="text-xs pointer-events-none">
+            <Badge
+              variant={
+                isClickSelected && (clickSelectedType === "theory" || (!clickSelectedType && !pendingTheorySection))
+                  ? "info"
+                  : "outline"
+              }
+              className={cn("text-xs", isClickSelected && "cursor-pointer hover:bg-blue-100")}
+              onClick={(e) => isClickSelected && handleTypeSwitch(e, "theory")}
+            >
               Lý thuyết
             </Badge>
           )}
           {course.hasPracticalClass && (
-            <Badge variant="warning" className="text-xs pointer-events-none">
+            <Badge
+              variant={
+                isClickSelected && (clickSelectedType === "practical" || pendingTheorySection) ? "warning" : "outline"
+              }
+              className={cn("text-xs", isClickSelected && "cursor-pointer hover:bg-yellow-100")}
+              onClick={(e) => isClickSelected && handleTypeSwitch(e, "practical")}
+            >
               Thực hành
             </Badge>
           )}
