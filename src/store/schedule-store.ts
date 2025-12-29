@@ -41,6 +41,7 @@ interface ScheduleState {
   filterOptions: FilterOptions;
   clickSelectedCourse: Course | null;
   clickSelectedLecturer: string | null;
+  clickSelectedType: "theory" | "practical" | null;
 
   // State cho việc đang chọn lớp TH sau khi đã chọn LT
   pendingTheorySection: ClassSection | null;
@@ -127,6 +128,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
         clickSelectedCourse: null,
         clickSelectedLecturer: null,
+        clickSelectedType: null,
 
         pendingTheorySection: null,
 
@@ -537,8 +539,10 @@ export const useScheduleStore = create<ScheduleState>()(
             // Nếu đang chờ chọn lớp TH (sau khi đã chọn LT), chỉ hiện TH
             // Ngược lại, mặc định chỉ hiện lớp lý thuyết (nếu có)
             const hasTheorySections = filteredSections.some((s) => !s.isPractical);
-            if (state.pendingTheorySection) {
+            if (state.pendingTheorySection || state.clickSelectedType === "practical") {
               filteredSections = filteredSections.filter((s) => s.isPractical);
+            } else if (state.clickSelectedType === "theory") {
+              filteredSections = filteredSections.filter((s) => !s.isPractical);
             } else if (hasTheorySections) {
               filteredSections = filteredSections.filter((s) => !s.isPractical);
             }
@@ -600,6 +604,7 @@ export const useScheduleStore = create<ScheduleState>()(
           set({
             clickSelectedCourse: course,
             clickSelectedLecturer: null,
+            clickSelectedType: null,
           });
           // Cập nhật highlighted slots cho course được chọn
           get().updateHighlightedSlots();
@@ -615,6 +620,7 @@ export const useScheduleStore = create<ScheduleState>()(
           set({
             clickSelectedCourse: null,
             clickSelectedLecturer: null,
+            clickSelectedType: null,
             pendingTheorySection: null,
             highlightedSlots: [],
           });
