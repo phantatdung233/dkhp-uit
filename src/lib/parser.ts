@@ -25,7 +25,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   periods: ["TIẾT"],
   lecturer: ["TÊN GIẢNG VIÊN", "TÊN TRỢ GIẢNG", "TÊN GV"],
   lecturerCode: ["MÃ GIẢNG VIÊN", "MÃ GV"],
-  credits: ["SỐ TC", "TÍN CHỈ", "STC", "SỐ TÍN CHỈ"],
+  credits: ["SỐ TC", "TÍN CHỈ", "STC", "SỐ TÍN CHỈ", "TC"],
   isPractical: ["THỰC HÀNH", "TH"],
   startDate: ["NBD", "NGÀY BẮT ĐẦU"],
   endDate: ["NKT", "NGÀY KẾT THÚC"],
