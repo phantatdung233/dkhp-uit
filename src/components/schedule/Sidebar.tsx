@@ -33,7 +33,9 @@ export function Sidebar({ onClose }: SidebarProps) {
       {/* Header */}
       <div className="p-3 sm:p-4 border-b bg-white flex justify-between items-center">
         <div>
-          <h2 className="text-base sm:text-lg font-semibold text-[#2f6bff] flex items-center gap-2">Danh sách môn học</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-[#2f6bff] flex items-center gap-2">
+            Danh sách môn học
+          </h2>
         </div>
         {onClose && (
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose}>
@@ -74,7 +76,12 @@ export function Sidebar({ onClose }: SidebarProps) {
             </div>
           ) : (
             filteredCourses.map((course, index) => (
-              <CourseItem key={course.id} course={course} colorIndex={index % COURSE_COLORS.length} onSelect={onClose} />
+              <CourseItem
+                key={course.id}
+                course={course}
+                colorIndex={index % COURSE_COLORS.length}
+                onSelect={onClose}
+              />
             ))
           )}
         </div>

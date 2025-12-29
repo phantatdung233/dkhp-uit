@@ -43,7 +43,7 @@ export function CalendarGrid() {
   // Mobile day pagination
   const [mobileDayPage, setMobileDayPage] = useState(0);
   const totalMobilePages = Math.ceil(DAYS.length / MOBILE_DAYS_PER_PAGE);
-  
+
   const visibleDays = useMemo(() => {
     const startIdx = mobileDayPage * MOBILE_DAYS_PER_PAGE;
     return DAYS.slice(startIdx, startIdx + MOBILE_DAYS_PER_PAGE);
@@ -248,10 +248,18 @@ export function CalendarGrid() {
           ))}
 
           {/* Highlighted blocks overlay */}
-          <HighlightedBlocksOverlay highlightedSlots={highlightedSlots} maxPeriod={maxPeriodUsed} visibleDays={visibleDays} />
+          <HighlightedBlocksOverlay
+            highlightedSlots={highlightedSlots}
+            maxPeriod={maxPeriodUsed}
+            visibleDays={visibleDays}
+          />
 
           {/* Scheduled classes overlay */}
-          <ScheduledClassesOverlay scheduledClasses={regularClasses} onRemove={removeClassFromSchedule} visibleDays={visibleDays} />
+          <ScheduledClassesOverlay
+            scheduledClasses={regularClasses}
+            onRemove={removeClassFromSchedule}
+            visibleDays={visibleDays}
+          />
         </div>
 
         {/* Flexible schedule section */}
@@ -418,27 +426,23 @@ function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleDays }: 
     const desktopDayIndex = DAYS.indexOf(block.dayOfWeek);
     // Mobile: use visible days
     const mobileDayIndex = visibleDays.indexOf(block.dayOfWeek);
-    
+
     if (desktopDayIndex === -1) return;
 
     blockElements.push(
-      <ClickableHighlightBlock 
-        key={key} 
-        block={block} 
-        dayIndex={desktopDayIndex} 
+      <ClickableHighlightBlock
+        key={key}
+        block={block}
+        dayIndex={desktopDayIndex}
         mobileDayIndex={mobileDayIndex}
         mobileVisible={mobileDayIndex !== -1}
         mobileDaysCount={visibleDays.length}
-        isClickMode={isClickMode} 
+        isClickMode={isClickMode}
       />
     );
   });
 
-  return (
-    <div className="absolute inset-0 z-10 left-14 sm:left-20">
-      {blockElements}
-    </div>
-  );
+  return <div className="absolute inset-0 z-10 left-14 sm:left-20">{blockElements}</div>;
 }
 
 // ============ Clickable Highlight Block ============
@@ -458,17 +462,24 @@ interface ClickableHighlightBlockProps {
   isClickMode: boolean;
 }
 
-function ClickableHighlightBlock({ block, dayIndex, mobileDayIndex, mobileVisible, mobileDaysCount, isClickMode }: ClickableHighlightBlockProps) {
+function ClickableHighlightBlock({
+  block,
+  dayIndex,
+  mobileDayIndex,
+  mobileVisible,
+  mobileDaysCount,
+  isClickMode,
+}: ClickableHighlightBlockProps) {
   const { addClassToSchedule, clickSelectedLecturer } = useScheduleStore();
 
   // Desktop positioning
   const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
   const desktopLeft = `calc(${dayIndex} * ${desktopDayWidth})`;
-  
+
   // Mobile positioning
   const mobileDayWidth = `calc((100%) / ${mobileDaysCount})`;
   const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
-  
+
   const top = (block.startPeriod - 1) * CELL_HEIGHT;
   const height = block.periodCount * CELL_HEIGHT;
 
@@ -645,10 +656,10 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: Sc
 
         const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
         const desktopLeft = `calc(${desktopDayIndex} * ${desktopDayWidth})`;
-        
+
         const mobileDayWidth = `calc((100%) / ${visibleDays.length})`;
         const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
-        
+
         const top = (section.startPeriod - 1) * CELL_HEIGHT;
         const height = section.periodCount * CELL_HEIGHT - 4; // -4 for gap
 
@@ -708,7 +719,14 @@ interface ScheduledClassCardProps {
   compact?: boolean;
 }
 
-function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove, className, compact: mobileCompact }: ScheduledClassCardProps) {
+function ScheduledClassCard({
+  scheduledClass,
+  style,
+  colorClass,
+  onRemove,
+  className,
+  compact: mobileCompact,
+}: ScheduledClassCardProps) {
   const section = scheduledClass.classSection;
   const isCompact = section.periodCount <= 2 || mobileCompact;
 
@@ -737,8 +755,16 @@ function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove, class
 
             {/* Content */}
             <div className="h-full flex flex-col">
-              <p className={cn("font-medium mt-0.5", mobileCompact ? "text-[9px]" : "text-[11px]")}>{section.classCode}</p>
-              <h4 className={cn("font-bold leading-tight", mobileCompact ? "text-[10px] truncate" : "text-[13px]", isCompact ? "truncate" : "break-words")}>
+              <p className={cn("font-medium mt-0.5", mobileCompact ? "text-[9px]" : "text-[11px]")}>
+                {section.classCode}
+              </p>
+              <h4
+                className={cn(
+                  "font-bold leading-tight",
+                  mobileCompact ? "text-[10px] truncate" : "text-[13px]",
+                  isCompact ? "truncate" : "break-words"
+                )}
+              >
                 {section.courseName}
               </h4>
 
@@ -780,7 +806,8 @@ function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove, class
                     <div className="flex items-center gap-1 text-[9px] opacity-60 border-t border-black/5 pt-0.5 mt-0.5">
                       <Calendar className="h-2 w-2 shrink-0" />
                       <span className="truncate">
-                        {section.startDate ? format(section.startDate, "dd/MM") : "?"}-{section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                        {section.startDate ? format(section.startDate, "dd/MM") : "?"}-
+                        {section.endDate ? format(section.endDate, "dd/MM") : "?"}
                       </span>
                     </div>
                   )}

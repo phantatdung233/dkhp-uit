@@ -51,12 +51,7 @@ export function SchedulePlanner() {
         </Button>
 
         {/* Mobile overlay */}
-        {isSidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-            onClick={handleOverlayClick}
-          />
-        )}
+        {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={handleOverlayClick} />}
 
         {/* Sidebar with course list */}
         <div
