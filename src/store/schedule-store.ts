@@ -601,10 +601,23 @@ export const useScheduleStore = create<ScheduleState>()(
 
         // ============ Click-to-place Actions ============
         setClickSelectedCourse: (course) => {
+          const state = get();
+          
+          // Nếu đang có pending theory và chọn môn khác, xóa lớp LT đã xếp tạm
+          if (state.pendingTheorySection && course?.code !== state.pendingTheorySection.courseCode) {
+            const theoryScheduledClass = state.scheduledClasses.find(
+              (sc) => sc.classSection.id === state.pendingTheorySection!.id
+            );
+            if (theoryScheduledClass) {
+              get().removeClassFromSchedule(theoryScheduledClass.id);
+            }
+          }
+          
           set({
             clickSelectedCourse: course,
             clickSelectedLecturer: null,
             clickSelectedType: null,
+            pendingTheorySection: null,
           });
           // Cập nhật highlighted slots cho course được chọn
           get().updateHighlightedSlots();
@@ -617,6 +630,18 @@ export const useScheduleStore = create<ScheduleState>()(
         },
 
         clearClickSelection: () => {
+          const state = get();
+          
+          // Nếu đang có pending theory, xóa lớp LT đã xếp tạm
+          if (state.pendingTheorySection) {
+            const theoryScheduledClass = state.scheduledClasses.find(
+              (sc) => sc.classSection.id === state.pendingTheorySection!.id
+            );
+            if (theoryScheduledClass) {
+              get().removeClassFromSchedule(theoryScheduledClass.id);
+            }
+          }
+          
           set({
             clickSelectedCourse: null,
             clickSelectedLecturer: null,

@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Upload, Link2, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,49 +23,26 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-import { parseExcelFile, parseGoogleSheet, validateParseResult } from "@/lib/parser";
+import { parseExcelFile, validateParseResult } from "@/lib/parser";
 import { useScheduleStore } from "@/store/schedule-store";
 import type { ParseResult } from "@/types";
 import { cn } from "@/lib/utils";
 
-type UploadTab = "file" | "link";
-
 export function FileUpload() {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<UploadTab>("file");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
-  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { importData, allSections } = useScheduleStore();
-
-  // Auto-import when valid Google Sheets URL is pasted
-  useEffect(() => {
-    if (!googleSheetUrl.trim()) return;
-
-    // Validate Google Sheets URL
-    const isValidGoogleSheetsUrl =
-      googleSheetUrl.includes("docs.google.com/spreadsheets") || googleSheetUrl.includes("drive.google.com/");
-
-    if (isValidGoogleSheetsUrl && !isLoading) {
-      // Debounce: wait 500ms after user stops typing
-      const timer = setTimeout(() => {
-        handleGoogleSheetSubmit();
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [googleSheetUrl]);
 
   // Reset state when modal closes
   const handleClose = () => {
     setIsOpen(false);
     setResult(null);
     setWarnings([]);
-    setGoogleSheetUrl("");
   };
 
   // Handle file selection
@@ -84,37 +61,6 @@ export function FileUpload() {
 
     try {
       const parseResult = await parseExcelFile(file);
-      setResult(parseResult);
-      setWarnings(validateParseResult(parseResult));
-    } catch (error) {
-      setResult({
-        success: false,
-        sections: [],
-        courses: [],
-        totalRows: 0,
-        errorRows: 0,
-        errors: [
-          {
-            row: 0,
-            message: error instanceof Error ? error.message : "Unknown error",
-          },
-        ],
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Handle Google Sheet URL
-  const handleGoogleSheetSubmit = async () => {
-    if (!googleSheetUrl.trim()) return;
-
-    setIsLoading(true);
-    setResult(null);
-    setWarnings([]);
-
-    try {
-      const parseResult = await parseGoogleSheet(googleSheetUrl);
       setResult(parseResult);
       setWarnings(validateParseResult(parseResult));
     } catch (error) {
@@ -195,88 +141,52 @@ export function FileUpload() {
         </DialogHeader>
 
         {!result ? (
-          <>
-            {/* Tabs */}
-            <div className="flex gap-2 border-b">
-              <button
-                className={cn(
-                  "px-4 py-2 -mb-px border-b-2 transition-colors",
-                  activeTab === "file"
-                    ? "border-primary text-primary font-medium"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                )}
-                onClick={() => setActiveTab("file")}
-              >
-                <Upload className="h-4 w-4 inline mr-2" />
-                Upload File
-              </button>
-              <button
-                className={cn(
-                  "px-4 py-2 -mb-px border-b-2 transition-colors",
-                  activeTab === "link"
-                    ? "border-primary text-primary font-medium"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
-                )}
-                onClick={() => setActiveTab("link")}
-              >
-                <Link2 className="h-4 w-4 inline mr-2" />
-                Google Sheet
-              </button>
-            </div>
-
-            {/* Tab content */}
-            <div className="py-4">
-              {activeTab === "file" ? (
-                <div
-                  className={cn(
-                    "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-                    dragActive ? "border-primary bg-primary/5" : "border-gray-200 hover:border-gray-300",
-                    isLoading && "opacity-50 pointer-events-none"
-                  )}
-                  onDragEnter={handleDrag}
-                  onDragLeave={handleDrag}
-                  onDragOver={handleDrag}
-                  onDrop={handleDrop}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xlsm,.xls,.csv"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-
-                  <FileSpreadsheet className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-gray-600 mb-2">Thả file vào đây</p>
-                  <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Đang xử lý...
-                      </>
-                    ) : (
-                      "Chọn file"
-                    )}
-                  </Button>
-                  <p className="text-xs text-gray-400 mt-2">Hỗ trợ: .xlsx, .xlsm, .xls, .csv</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Input
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                      value={googleSheetUrl}
-                      onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                      disabled={isLoading}
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      {isLoading ? "Đang tải dữ liệu..." : "* Có thể lấy trên trang thông báo của trường"}
-                    </p>
-                  </div>
-                </div>
+          <div className="py-4">
+            <div
+              className={cn(
+                "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
+                dragActive ? "border-primary bg-primary/5" : "border-gray-200 hover:border-gray-300",
+                isLoading && "opacity-50 pointer-events-none"
               )}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xlsm,.xls,.csv"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
+              <FileSpreadsheet className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600 mb-2">Thả file vào đây</p>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Đang xử lý...
+                  </>
+                ) : (
+                  "Chọn file"
+                )}
+              </Button>
+              <p className="text-xs text-gray-400 mt-2">Hỗ trợ: .xlsx, .xlsm, .xls, .csv</p>
+              <p className="text-xs text-blue-600 mt-3">
+                {" "}
+                <a
+                  href="https://daa.uit.edu.vn/thongbaochinhquy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-blue-800"
+                >
+                  Lấy file tại đây
+                </a>
+              </p>
             </div>
-          </>
+          </div>
         ) : (
           <div className="py-4 space-y-3">
             {/* Success/Error Summary */}

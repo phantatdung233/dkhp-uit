@@ -181,19 +181,48 @@ export function getHighlightedSlots(
 
     // Nếu là lớp LT và có allSections, kiểm tra xem có lớp TH nào khả dụng không
     if (!section.isPractical && allSections) {
-      const practicalSections = allSections.filter(
-        (s) => s.courseCode === section.courseCode && s.isPractical && s.classCode.startsWith(section.classCode + ".")
+      // Kiểm tra xem môn này có lớp TH không (bất kỳ lớp TH nào)
+      const courseHasPractical = allSections.some(
+        (s) => s.courseCode === section.courseCode && s.isPractical
       );
 
-      // Nếu có lớp TH, check xem có ít nhất 1 lớp TH nào không bị conflict không
-      if (practicalSections.length > 0) {
-        const hasValidPractical = practicalSections.some(
-          (ps) => checkConflictWithSchedule(ps, scheduledClasses).length === 0
+      // Nếu môn có lớp TH, kiểm tra xem lớp LT này có TH tương ứng không
+      if (courseHasPractical) {
+        const practicalSections = allSections.filter(
+          (s) => s.courseCode === section.courseCode && s.isPractical && s.classCode.startsWith(section.classCode + ".")
         );
 
-        // Nếu không có TH nào khả dụng, đánh dấu LT này là conflict
-        if (!hasValidPractical) {
+        // Debug logging
+        if (section.classCode === "IT003.Q21") {
+          console.log("Debug IT003.Q21:", {
+            classCode: section.classCode,
+            courseHasPractical,
+            practicalSections: practicalSections.map(s => s.classCode),
+            scheduledClasses: scheduledClasses.map(sc => sc.classSection.classCode),
+          });
+        }
+
+        // Nếu lớp LT này không có TH tương ứng, đánh dấu conflict
+        if (practicalSections.length === 0) {
           hasAnyConflict = true;
+          if (section.classCode === "IT003.Q21") {
+            console.log("IT003.Q21 no practical sections found!");
+          }
+        } else {
+          // Nếu có lớp TH, check xem có ít nhất 1 lớp TH nào không bị conflict không
+          const hasValidPractical = practicalSections.some(
+            (ps) => checkConflictWithSchedule(ps, scheduledClasses).length === 0
+          );
+
+          // Debug logging
+          if (section.classCode === "IT003.Q21") {
+            console.log("IT003.Q21 hasValidPractical:", hasValidPractical);
+          }
+
+          // Nếu không có TH nào khả dụng, đánh dấu LT này là conflict
+          if (!hasValidPractical) {
+            hasAnyConflict = true;
+          }
         }
       }
     }
@@ -216,7 +245,7 @@ export function getHighlightedSlots(
       const slot = slotMap.get(slotId)!;
 
       if (hasAnyConflict) {
-        // Nếu section có xung đột, đánh dấu slot này là có xung đột (để hiển thị màu đỏ)
+        // Nếu section có xung đột (bao gồm cả TH conflict), đánh dấu slot này là có xung đột
         slot.hasConflict = true;
       } else {
         // Nếu không có xung đột, thêm vào danh sách các lớp khả dụng cho slot này
@@ -225,11 +254,15 @@ export function getHighlightedSlots(
     }
   }
 
-  // Quan trọng: Nếu một slot vừa có lớp khả dụng vừa có conflict (do nhiều section khác nhau),
-  // thì ưu tiên hiển thị là có lớp khả dụng (hasConflict = false để có thể click)
+  // Xử lý lại hasConflict cho từng slot dựa trên availableSections
+  // Nếu slot có ít nhất 1 section available → hasConflict = false
+  // Nếu slot không có section nào available → hasConflict = true
   for (const slot of Array.from(slotMap.values())) {
     if (slot.availableSections.length > 0) {
       slot.hasConflict = false;
+    } else if (slot.hasConflict) {
+      // Giữ nguyên hasConflict = true nếu đã được set
+      slot.hasConflict = true;
     }
   }
 

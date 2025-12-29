@@ -200,22 +200,22 @@ export function CalendarGrid() {
 
       <div id="schedule-calendar" className="bg-white p-2 sm:p-4">
         {/* Header row - Days */}
-        <div className="flex border-b sticky top-0 bg-white z-10">
-          <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 sm:p-2">
+        <div className="flex border-b sticky top-0 bg-white z-20 shadow-sm">
+          <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 sm:p-2 z-20">
             <span className="text-[10px] sm:text-xs font-medium text-gray-500">Tiết / Thứ</span>
           </div>
           {/* Mobile: show only visible days */}
-          <div className="flex flex-1 md:hidden">
+          <div className="flex flex-1 md:hidden bg-white">
             {visibleDays.map((day) => (
-              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-1 text-center">
+              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-1 text-center z-20">
                 <span className="font-semibold text-gray-700 text-xs">{DAY_NAMES[day]}</span>
               </div>
             ))}
           </div>
           {/* Desktop: show all days */}
-          <div className="hidden md:flex flex-1">
+          <div className="hidden md:flex flex-1 bg-white">
             {DAYS.map((day) => (
-              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-3 text-center">
+              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-3 text-center z-20">
                 <span className="font-semibold text-gray-700 text-base">{DAY_NAMES[day]}</span>
               </div>
             ))}
@@ -642,7 +642,7 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: Sc
   });
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20 left-14 sm:left-20">
+    <div className="absolute inset-0 pointer-events-none z-10 left-14 sm:left-20">
       {scheduledClasses.map((scheduledClass) => {
         const section = scheduledClass.classSection;
 
