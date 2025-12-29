@@ -8,8 +8,8 @@
  * Hỗ trợ click-to-place khi đã chọn môn học từ sidebar
  */
 
-import React, { useMemo, useCallback } from "react";
-import { X, Clock, MapPin, User, AlertTriangle, Calendar, Users, Plus } from "lucide-react";
+import React, { useMemo, useCallback, useState } from "react";
+import { X, Clock, MapPin, User, AlertTriangle, Calendar, Users, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import { toast } from "sonner";
 const DAYS = [2, 3, 4, 5, 6, 7]; // Thứ 2 - Thứ 7
 const PERIODS = Array.from({ length: 15 }, (_, i) => i + 1); // Tiết 1-15
 const CELL_HEIGHT = 48; // px
+const MOBILE_DAYS_PER_PAGE = 3;
 
 export function CalendarGrid() {
   const {
@@ -38,6 +39,15 @@ export function CalendarGrid() {
     pendingTheorySection,
     filterOptions,
   } = useScheduleStore();
+
+  // Mobile day pagination
+  const [mobileDayPage, setMobileDayPage] = useState(0);
+  const totalMobilePages = Math.ceil(DAYS.length / MOBILE_DAYS_PER_PAGE);
+  
+  const visibleDays = useMemo(() => {
+    const startIdx = mobileDayPage * MOBILE_DAYS_PER_PAGE;
+    return DAYS.slice(startIdx, startIdx + MOBILE_DAYS_PER_PAGE);
+  }, [mobileDayPage]);
 
   const { regularClasses, flexibleClasses } = useMemo(() => {
     const regular: ScheduledClass[] = [];
@@ -163,17 +173,53 @@ export function CalendarGrid() {
 
   return (
     <div className="flex-1 overflow-auto bg-white">
-      <div id="schedule-calendar" className="min-w-[900px] bg-white p-4">
+      {/* Mobile day navigation */}
+      <div className="flex items-center justify-between px-2 py-1 bg-gray-50 border-b md:hidden">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setMobileDayPage((p) => Math.max(0, p - 1))}
+          disabled={mobileDayPage === 0}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <span className="text-sm font-medium text-gray-600">
+          {DAY_NAMES[visibleDays[0]]} - {DAY_NAMES[visibleDays[visibleDays.length - 1]]}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setMobileDayPage((p) => Math.min(totalMobilePages - 1, p + 1))}
+          disabled={mobileDayPage >= totalMobilePages - 1}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </Button>
+      </div>
+
+      <div id="schedule-calendar" className="bg-white p-2 sm:p-4">
         {/* Header row - Days */}
-        <div className="flex border-b sticky top-0 bg-white z-30">
-          <div className="w-20 shrink-0 border-r bg-gray-50 p-2">
-            <span className="text-xs font-medium text-gray-500">Tiết / Thứ</span>
+        <div className="flex border-b sticky top-0 bg-white z-10">
+          <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 sm:p-2">
+            <span className="text-[10px] sm:text-xs font-medium text-gray-500">Tiết / Thứ</span>
           </div>
-          {DAYS.map((day) => (
-            <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-3 text-center">
-              <span className="font-semibold text-gray-700">{DAY_NAMES[day]}</span>
-            </div>
-          ))}
+          {/* Mobile: show only visible days */}
+          <div className="flex flex-1 md:hidden">
+            {visibleDays.map((day) => (
+              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-1 text-center">
+                <span className="font-semibold text-gray-700 text-xs">{DAY_NAMES[day]}</span>
+              </div>
+            ))}
+          </div>
+          {/* Desktop: show all days */}
+          <div className="hidden md:flex flex-1">
+            {DAYS.map((day) => (
+              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-3 text-center">
+                <span className="font-semibold text-gray-700 text-base">{DAY_NAMES[day]}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Time slots grid */}
@@ -181,23 +227,31 @@ export function CalendarGrid() {
           {visiblePeriods.map((period) => (
             <div key={period} className="flex border-b" style={{ height: CELL_HEIGHT }}>
               {/* Period label */}
-              <div className="w-20 shrink-0 border-r bg-gray-50 p-1 flex flex-col justify-center items-center">
-                <span className="text-sm font-medium text-gray-700">Tiết {period}</span>
-                <span className="text-xs text-gray-400">{PERIOD_TIMES[period]?.start}</span>
+              <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 flex flex-col justify-center items-center">
+                <span className="text-xs sm:text-sm font-medium text-gray-700">Tiết {period}</span>
+                <span className="text-[9px] sm:text-xs text-gray-400">{PERIOD_TIMES[period]?.start}</span>
               </div>
 
-              {/* Day cells */}
-              {DAYS.map((day) => (
-                <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
-              ))}
+              {/* Mobile: show only visible days */}
+              <div className="flex flex-1 md:hidden">
+                {visibleDays.map((day) => (
+                  <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
+                ))}
+              </div>
+              {/* Desktop: show all days */}
+              <div className="hidden md:flex flex-1">
+                {DAYS.map((day) => (
+                  <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
+                ))}
+              </div>
             </div>
           ))}
 
           {/* Highlighted blocks overlay */}
-          <HighlightedBlocksOverlay highlightedSlots={highlightedSlots} maxPeriod={maxPeriodUsed} />
+          <HighlightedBlocksOverlay highlightedSlots={highlightedSlots} maxPeriod={maxPeriodUsed} visibleDays={visibleDays} />
 
           {/* Scheduled classes overlay */}
-          <ScheduledClassesOverlay scheduledClasses={regularClasses} onRemove={removeClassFromSchedule} />
+          <ScheduledClassesOverlay scheduledClasses={regularClasses} onRemove={removeClassFromSchedule} visibleDays={visibleDays} />
         </div>
 
         {/* Flexible schedule section */}
@@ -312,9 +366,10 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
 interface HighlightedBlocksOverlayProps {
   highlightedSlots: HighlightedSlot[];
   maxPeriod: number;
+  visibleDays: number[];
 }
 
-function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod }: HighlightedBlocksOverlayProps) {
+function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleDays }: HighlightedBlocksOverlayProps) {
   const { clickSelectedCourse } = useScheduleStore();
 
   if (highlightedSlots.length === 0) return null;
@@ -359,16 +414,28 @@ function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod }: HighlightedBl
   const isClickMode = clickSelectedCourse !== null;
 
   blocksByRange.forEach((block, key) => {
-    const dayIndex = DAYS.indexOf(block.dayOfWeek);
-    if (dayIndex === -1) return;
+    // Desktop: use all days
+    const desktopDayIndex = DAYS.indexOf(block.dayOfWeek);
+    // Mobile: use visible days
+    const mobileDayIndex = visibleDays.indexOf(block.dayOfWeek);
+    
+    if (desktopDayIndex === -1) return;
 
     blockElements.push(
-      <ClickableHighlightBlock key={key} block={block} dayIndex={dayIndex} isClickMode={isClickMode} />
+      <ClickableHighlightBlock 
+        key={key} 
+        block={block} 
+        dayIndex={desktopDayIndex} 
+        mobileDayIndex={mobileDayIndex}
+        mobileVisible={mobileDayIndex !== -1}
+        mobileDaysCount={visibleDays.length}
+        isClickMode={isClickMode} 
+      />
     );
   });
 
   return (
-    <div className="absolute inset-0 z-10" style={{ left: 80 }}>
+    <div className="absolute inset-0 z-10 left-14 sm:left-20">
       {blockElements}
     </div>
   );
@@ -385,14 +452,23 @@ interface ClickableHighlightBlockProps {
     sections: ClassSection[];
   };
   dayIndex: number;
+  mobileDayIndex: number;
+  mobileVisible: boolean;
+  mobileDaysCount: number;
   isClickMode: boolean;
 }
 
-function ClickableHighlightBlock({ block, dayIndex, isClickMode }: ClickableHighlightBlockProps) {
+function ClickableHighlightBlock({ block, dayIndex, mobileDayIndex, mobileVisible, mobileDaysCount, isClickMode }: ClickableHighlightBlockProps) {
   const { addClassToSchedule, clickSelectedLecturer } = useScheduleStore();
 
-  const dayWidth = `calc((100%) / ${DAYS.length})`;
-  const left = `calc(${dayIndex} * ${dayWidth})`;
+  // Desktop positioning
+  const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
+  const desktopLeft = `calc(${dayIndex} * ${desktopDayWidth})`;
+  
+  // Mobile positioning
+  const mobileDayWidth = `calc((100%) / ${mobileDaysCount})`;
+  const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
+  
   const top = (block.startPeriod - 1) * CELL_HEIGHT;
   const height = block.periodCount * CELL_HEIGHT;
 
@@ -424,57 +500,114 @@ function ClickableHighlightBlock({ block, dayIndex, isClickMode }: ClickableHigh
   const hasMultipleOptions = filteredSections.length > 1;
 
   return (
-    <div
-      onClick={handleClick}
-      className={cn(
-        "absolute border-2 rounded-md transition-all z-20 overflow-hidden",
-        block.hasConflict
-          ? "border-red-400 bg-red-100/50 pointer-events-none"
-          : isClickMode
-          ? cn(
-              "cursor-pointer pointer-events-auto",
-              hasMultipleOptions
-                ? "border-green-400 bg-green-50/90 shadow-sm"
-                : "border-green-400 bg-green-100/70 hover:bg-green-200/80 hover:border-green-500"
-            )
-          : "border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
-      )}
-      style={{
-        left,
-        top: top + 2,
-        width: dayWidth,
-        height: height - 4,
-      }}
-    >
-      {/* Nội dung hiển thị trong block */}
-      {isClickMode && !block.hasConflict && (
-        <div className="h-full flex flex-col">
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
-              <span>{filteredSections.length} LỰA CHỌN</span>
-              <Users className="h-2.5 w-2.5" />
-            </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/50">
-              {filteredSections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectSection(section);
-                  }}
-                  className="w-full text-left px-1.5 py-1 border-b border-green-100 hover:bg-green-100 transition-colors flex flex-col group"
-                >
-                  <span className="text-[10px] font-bold text-green-800 truncate leading-tight">
-                    {section.lecturer}
-                  </span>
-                  <span className="text-[9px] text-green-600 truncate opacity-80">{section.classCode}</span>
-                </button>
-              ))}
+    <>
+      {/* Desktop block */}
+      <div
+        onClick={handleClick}
+        className={cn(
+          "absolute border-2 rounded-md transition-all z-20 overflow-hidden hidden md:block",
+          block.hasConflict
+            ? "border-red-400 bg-red-100/50 pointer-events-none"
+            : isClickMode
+            ? cn(
+                "cursor-pointer pointer-events-auto",
+                hasMultipleOptions
+                  ? "border-green-400 bg-green-50/90 shadow-sm"
+                  : "border-green-400 bg-green-100/70 hover:bg-green-200/80 hover:border-green-500"
+              )
+            : "border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
+        )}
+        style={{
+          left: desktopLeft,
+          top: top + 2,
+          width: desktopDayWidth,
+          height: height - 4,
+        }}
+      >
+        {/* Nội dung hiển thị trong block */}
+        {isClickMode && !block.hasConflict && (
+          <div className="h-full flex flex-col">
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
+                <span>{filteredSections.length} LỰA CHỌN</span>
+                <Users className="h-2.5 w-2.5" />
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+                {filteredSections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectSection(section);
+                    }}
+                    className="w-full text-left px-1.5 py-1 border-b border-green-100 hover:bg-green-100 transition-colors flex flex-col group"
+                  >
+                    <span className="text-[10px] font-bold text-green-800 truncate leading-tight">
+                      {section.lecturer}
+                    </span>
+                    <span className="text-[9px] text-green-600 truncate opacity-80">{section.classCode}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+        )}
+      </div>
+
+      {/* Mobile block */}
+      {mobileVisible && (
+        <div
+          onClick={handleClick}
+          className={cn(
+            "absolute border-2 rounded-md transition-all z-20 overflow-hidden md:hidden",
+            block.hasConflict
+              ? "border-red-400 bg-red-100/50 pointer-events-none"
+              : isClickMode
+              ? cn(
+                  "cursor-pointer pointer-events-auto",
+                  hasMultipleOptions
+                    ? "border-green-400 bg-green-50/90 shadow-sm"
+                    : "border-green-400 bg-green-100/70 hover:bg-green-200/80 hover:border-green-500"
+                )
+              : "border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
+          )}
+          style={{
+            left: mobileLeft,
+            top: top + 2,
+            width: mobileDayWidth,
+            height: height - 4,
+          }}
+        >
+          {/* Nội dung hiển thị trong block */}
+          {isClickMode && !block.hasConflict && (
+            <div className="h-full flex flex-col">
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
+                  <span>{filteredSections.length}</span>
+                  <Users className="h-2.5 w-2.5" />
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+                  {filteredSections.map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelectSection(section);
+                      }}
+                      className="w-full text-left px-1 py-0.5 border-b border-green-100 hover:bg-green-100 transition-colors flex flex-col group"
+                    >
+                      <span className="text-[9px] font-bold text-green-800 truncate leading-tight">
+                        {section.lecturer}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -483,9 +616,10 @@ function ClickableHighlightBlock({ block, dayIndex, isClickMode }: ClickableHigh
 interface ScheduledClassesOverlayProps {
   scheduledClasses: ScheduledClass[];
   onRemove: (id: string) => void;
+  visibleDays: number[];
 }
 
-function ScheduledClassesOverlay({ scheduledClasses, onRemove }: ScheduledClassesOverlayProps) {
+function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: ScheduledClassesOverlayProps) {
   // Group by courseCode for consistent colors
   const courseColorMap = new Map<string, number>();
   let colorIndex = 0;
@@ -497,19 +631,24 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove }: ScheduledClasse
   });
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-20" style={{ left: 80 }}>
+    <div className="absolute inset-0 pointer-events-none z-20 left-14 sm:left-20">
       {scheduledClasses.map((scheduledClass) => {
         const section = scheduledClass.classSection;
 
         // Skip if flexible day or no day
         if (section.dayOfWeek === null) return null;
 
-        const dayIndex = DAYS.indexOf(section.dayOfWeek);
+        const desktopDayIndex = DAYS.indexOf(section.dayOfWeek);
+        const mobileDayIndex = visibleDays.indexOf(section.dayOfWeek);
 
-        if (dayIndex === -1) return null;
+        if (desktopDayIndex === -1) return null;
 
-        const dayWidth = `calc((100%) / ${DAYS.length})`;
-        const left = `calc(${dayIndex} * ${dayWidth})`;
+        const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
+        const desktopLeft = `calc(${desktopDayIndex} * ${desktopDayWidth})`;
+        
+        const mobileDayWidth = `calc((100%) / ${visibleDays.length})`;
+        const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
+        
         const top = (section.startPeriod - 1) * CELL_HEIGHT;
         const height = section.periodCount * CELL_HEIGHT - 4; // -4 for gap
 
@@ -517,20 +656,41 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove }: ScheduledClasse
         const colorClass = COURSE_COLORS[colorIdx % COURSE_COLORS.length];
 
         return (
-          <ScheduledClassCard
-            key={scheduledClass.id}
-            scheduledClass={scheduledClass}
-            style={{
-              position: "absolute",
-              left,
-              top: top + 2,
-              width: dayWidth,
-              height,
-              padding: "0 4px",
-            }}
-            colorClass={colorClass}
-            onRemove={() => onRemove(scheduledClass.id)}
-          />
+          <React.Fragment key={scheduledClass.id}>
+            {/* Desktop card */}
+            <ScheduledClassCard
+              scheduledClass={scheduledClass}
+              className="hidden md:block"
+              style={{
+                position: "absolute",
+                left: desktopLeft,
+                top: top + 2,
+                width: desktopDayWidth,
+                height,
+                padding: "0 4px",
+              }}
+              colorClass={colorClass}
+              onRemove={() => onRemove(scheduledClass.id)}
+            />
+            {/* Mobile card */}
+            {mobileDayIndex !== -1 && (
+              <ScheduledClassCard
+                scheduledClass={scheduledClass}
+                className="md:hidden"
+                style={{
+                  position: "absolute",
+                  left: mobileLeft,
+                  top: top + 2,
+                  width: mobileDayWidth,
+                  height,
+                  padding: "0 2px",
+                }}
+                colorClass={colorClass}
+                onRemove={() => onRemove(scheduledClass.id)}
+                compact
+              />
+            )}
+          </React.Fragment>
         );
       })}
     </div>
@@ -544,20 +704,23 @@ interface ScheduledClassCardProps {
   style: React.CSSProperties;
   colorClass: string;
   onRemove: () => void;
+  className?: string;
+  compact?: boolean;
 }
 
-function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove }: ScheduledClassCardProps) {
+function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove, className, compact: mobileCompact }: ScheduledClassCardProps) {
   const section = scheduledClass.classSection;
-  const isCompact = section.periodCount <= 2;
+  const isCompact = section.periodCount <= 2 || mobileCompact;
 
   return (
-    <div style={style} className="pointer-events-auto group">
+    <div style={style} className={cn("pointer-events-auto group", className)}>
       <Tooltip>
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "h-full w-full rounded-md border-2 p-1.5 overflow-hidden relative",
+              "h-full w-full rounded-md border-2 overflow-hidden relative",
               "shadow-sm hover:shadow-md transition-shadow cursor-pointer",
+              mobileCompact ? "p-1" : "p-1.5",
               colorClass
             )}
           >
@@ -574,8 +737,8 @@ function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove }: Sch
 
             {/* Content */}
             <div className="h-full flex flex-col">
-              <p className={cn("font-medium text-[11px] mt-0.5")}>{section.classCode}</p>
-              <h4 className={cn("font-bold leading-tight text-[13px]", isCompact ? "truncate" : "break-words")}>
+              <p className={cn("font-medium mt-0.5", mobileCompact ? "text-[9px]" : "text-[11px]")}>{section.classCode}</p>
+              <h4 className={cn("font-bold leading-tight", mobileCompact ? "text-[10px] truncate" : "text-[13px]", isCompact ? "truncate" : "break-words")}>
                 {section.courseName}
               </h4>
 
@@ -603,14 +766,22 @@ function ScheduledClassCard({ scheduledClass, style, colorClass, onRemove }: Sch
                 </div>
               ) : (
                 <div className="mt-auto space-y-0.5">
-                  <div className="flex items-center gap-1 text-[12px] opacity-70">
-                    <User className="h-3 w-3 shrink-0" />
+                  <div className="flex items-center gap-1 text-[10px] sm:text-[12px] opacity-70">
+                    <User className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
                     <span className="font-bold truncate">{section.lecturer}</span>
                   </div>
                   {section.room && (
-                    <div className="flex items-center gap-1 text-[12px] opacity-70">
-                      <MapPin className="h-3 w-3 shrink-0" />
+                    <div className="flex items-center gap-1 text-[10px] sm:text-[12px] opacity-70">
+                      <MapPin className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
                       <span className="font-bold truncate">{section.room}</span>
+                    </div>
+                  )}
+                  {mobileCompact && section.periodCount >= 3 && (section.startDate || section.endDate) && (
+                    <div className="flex items-center gap-1 text-[9px] opacity-60 border-t border-black/5 pt-0.5 mt-0.5">
+                      <Calendar className="h-2 w-2 shrink-0" />
+                      <span className="truncate">
+                        {section.startDate ? format(section.startDate, "dd/MM") : "?"}-{section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                      </span>
                     </div>
                   )}
                 </div>

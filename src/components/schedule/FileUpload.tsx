@@ -176,9 +176,9 @@ export function FileUpload() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" size={allSections.length > 0 ? "icon" : "default"} className={allSections.length > 0 ? "" : "gap-2"}>
           <Upload className="h-4 w-4" />
-          {allSections.length > 0 ? "Nhập lại dữ liệu" : "Nhập dữ liệu"}
+          {allSections.length === 0 && <span>Nhập dữ liệu</span>}
         </Button>
       </DialogTrigger>
 

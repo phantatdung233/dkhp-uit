@@ -133,10 +133,10 @@ export default function Home() {
       <main className="h-screen flex flex-col bg-gray-100">
         {/* Header */}
         <header className="bg-white border-b shadow-sm">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div>
-                <h1 className="text-xl font-bold">
+                <h1 className="text-lg sm:text-xl font-bold">
                   <span className="text-[#4299e3]">UIT</span>
                   <span className="text-gray-400 mx-1">-</span>
                   <span className="text-[#38b2ac]">ĐKHP</span>
@@ -144,22 +144,22 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
               {/* Schedule Manager */}
               {hasData && (
-                <div className="flex items-center gap-2 border-r pr-4">
+                <div className="flex items-center gap-2 sm:border-r sm:pr-4">
                   <ScheduleManager />
                 </div>
               )}
 
               {/* Special Group Selector */}
               {hasData && (
-                <div className="flex items-center gap-2 border-r pr-4">
+                <div className="hidden sm:flex items-center gap-2 border-r pr-4">
                   <Select
                     value={filterOptions.specialGroup}
                     onValueChange={(value: "none" | "ANTT" | "TTNT") => setFilterOptions({ specialGroup: value })}
                   >
-                    <SelectTrigger className="w-[120px] h-9">
+                    <SelectTrigger className="w-[100px] sm:w-[120px] h-8 sm:h-9 text-xs sm:text-sm">
                       <SelectValue placeholder="Nhóm ưu tiên" />
                     </SelectTrigger>
                     <SelectContent>
@@ -173,7 +173,7 @@ export default function Home() {
 
               {/* Stats badges */}
               {hasData && (
-                <div className="hidden lg:flex items-center gap-4 px-2">
+                <div className="hidden md:flex items-center gap-2 sm:gap-4 px-2">
                   <div className="flex flex-col items-end">
                     <Tooltip>
                       <TooltipTrigger asChild>

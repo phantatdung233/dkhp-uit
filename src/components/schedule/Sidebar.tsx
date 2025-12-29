@@ -12,6 +12,7 @@ import { Search, X, BookOpen } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useScheduleStore, useFilteredCourses } from "@/store/schedule-store";
@@ -19,21 +20,30 @@ import type { Course } from "@/types";
 import { COURSE_COLORS } from "@/types";
 import { cn } from "@/lib/utils";
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const { filterOptions, setFilterOptions } = useScheduleStore();
   const filteredCourses = useFilteredCourses();
 
   return (
-    <aside className="w-80 border-r bg-gray-50/50 flex flex-col h-full">
+    <aside className="w-80 max-w-[85vw] border-r bg-white flex flex-col h-full shadow-xl lg:shadow-none">
       {/* Header */}
-      <div className="p-4 border-b bg-white flex justify-between items-center">
+      <div className="p-3 sm:p-4 border-b bg-white flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold text-[#2f6bff] flex items-center gap-2">Danh sách môn học</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-[#2f6bff] flex items-center gap-2">Danh sách môn học</h2>
         </div>
+        {onClose && (
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
-      <div className="p-4 border-b bg-white">
+      <div className="p-3 sm:p-4 border-b bg-white">
         {/* Search input */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -41,7 +51,7 @@ export function Sidebar() {
             placeholder="Tìm môn, giảng viên, mã lớp..."
             value={filterOptions.searchQuery}
             onChange={(e) => setFilterOptions({ searchQuery: e.target.value })}
-            className="pl-9"
+            className="pl-9 text-sm"
           />
           {filterOptions.searchQuery && (
             <button
@@ -55,7 +65,7 @@ export function Sidebar() {
       </div>
 
       {/* Course list */}
-      <ScrollArea className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-3 sm:p-4">
         <div className="space-y-2">
           {filteredCourses.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
@@ -64,14 +74,14 @@ export function Sidebar() {
             </div>
           ) : (
             filteredCourses.map((course, index) => (
-              <CourseItem key={course.id} course={course} colorIndex={index % COURSE_COLORS.length} />
+              <CourseItem key={course.id} course={course} colorIndex={index % COURSE_COLORS.length} onSelect={onClose} />
             ))
           )}
         </div>
       </ScrollArea>
 
       {/* Footer */}
-      <div className="p-4 border-t bg-white text-center">
+      <div className="p-3 sm:p-4 border-t bg-white text-center">
         <p className="text-xs text-gray-500">Hiển thị {filteredCourses.length} môn học</p>
       </div>
     </aside>
@@ -83,9 +93,10 @@ export function Sidebar() {
 interface CourseItemProps {
   course: Course;
   colorIndex: number;
+  onSelect?: () => void;
 }
 
-function CourseItem({ course, colorIndex }: CourseItemProps) {
+function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
   const {
     scheduledClasses,
     clickSelectedCourse,
@@ -117,6 +128,8 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
     } else {
       setClickSelectedCourse(course);
       setClickSelectedLecturer(null);
+      // Tự động đóng sidebar trên mobile sau khi chọn môn
+      if (onSelect) onSelect();
     }
   };
 
