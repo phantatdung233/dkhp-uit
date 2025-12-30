@@ -33,6 +33,7 @@ export function ScheduleManager() {
   const MAX_SCHEDULES = 5;
   const [isOpen, setIsOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const currentSchedule = schedules.find((s) => s.id === currentScheduleId);
   const canAddMore = schedules.length < MAX_SCHEDULES;
@@ -175,6 +176,7 @@ export function ScheduleManager() {
                           e.stopPropagation();
                           if (canDelete) {
                             setDeleteConfirmId(schedule.id);
+                            setIsDeleteDialogOpen(true);
                           }
                         }}
                       >
@@ -192,7 +194,7 @@ export function ScheduleManager() {
       </DropdownMenu>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmId !== null} onOpenChange={() => setDeleteConfirmId(null)}>
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -205,10 +207,18 @@ export function ScheduleManager() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Hủy
             </Button>
-            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleteConfirmId) {
+                  handleDelete(deleteConfirmId);
+                  setIsDeleteDialogOpen(false);
+                }
+              }}
+            >
               Xóa TKB
             </Button>
           </DialogFooter>

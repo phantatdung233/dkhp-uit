@@ -64,6 +64,7 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
   const [mobileDayPage, setMobileDayPage] = useState(0);
   // Mobile detail dialog
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<ScheduledClass | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const totalMobilePages = Math.ceil(DAYS.length / MOBILE_DAYS_PER_PAGE);
 
   const visibleDays = useMemo(() => {
@@ -360,7 +361,10 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
                 <FlexibleClassesList
                   classes={flexibleClasses}
                   onRemove={removeClassFromSchedule}
-                  onClassClick={setSelectedClassForDetail}
+                  onClassClick={(cls) => {
+                    setSelectedClassForDetail(cls);
+                    setIsDetailOpen(true);
+                  }}
                 />
               )}
             </div>
@@ -369,7 +373,7 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
       </div>
 
       {/* Mobile detail dialog */}
-      <Dialog open={selectedClassForDetail !== null} onOpenChange={() => setSelectedClassForDetail(null)}>
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Thông tin môn học</DialogTitle>
@@ -382,14 +386,14 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
               onClick={() => {
                 if (selectedClassForDetail) {
                   removeClassFromSchedule(selectedClassForDetail.id);
-                  setSelectedClassForDetail(null);
+                  setIsDetailOpen(false);
                 }
               }}
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Xóa khỏi lịch
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setSelectedClassForDetail(null)}>
+            <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
               Đóng
             </Button>
           </div>
@@ -744,6 +748,7 @@ interface ScheduledClassesOverlayProps {
 
 function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: ScheduledClassesOverlayProps) {
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<ScheduledClass | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // Group by courseCode for consistent colors
   const courseColorMap = new Map<string, number>();
@@ -815,7 +820,10 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: Sc
                   onRemove={() => onRemove(scheduledClass.id)}
                   compact
                   isMobile
-                  onClick={() => setSelectedClassForDetail(scheduledClass)}
+                  onClick={() => {
+                    setSelectedClassForDetail(scheduledClass);
+                    setIsDetailOpen(true);
+                  }}
                 />
               )}
             </React.Fragment>
@@ -824,7 +832,7 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: Sc
       </div>
 
       {/* Mobile detail dialog */}
-      <Dialog open={selectedClassForDetail !== null} onOpenChange={() => setSelectedClassForDetail(null)}>
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Thông tin môn học</DialogTitle>
@@ -837,14 +845,14 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: Sc
               onClick={() => {
                 if (selectedClassForDetail) {
                   onRemove(selectedClassForDetail.id);
-                  setSelectedClassForDetail(null);
+                  setIsDetailOpen(false);
                 }
               }}
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Xóa khỏi lịch
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setSelectedClassForDetail(null)}>
+            <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
               Đóng
             </Button>
           </div>

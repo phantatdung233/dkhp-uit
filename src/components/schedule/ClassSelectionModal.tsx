@@ -6,7 +6,7 @@
  * Modal hiển thị khi có nhiều lớp cùng giờ để user chọn
  */
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Clock, User, MapPin, Calendar, Users } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
@@ -30,7 +30,19 @@ export function ClassSelectionModal() {
     selectClassFromModal,
   } = useScheduleStore();
 
-  if (!pendingSlot) return null;
+  // Buffer data to avoid flicker during close animation
+  const [displayData, setDisplayData] = useState<{
+    options: ClassSection[];
+    slot: { dayOfWeek: number; period: number } | null;
+  }>({ options: [], slot: null });
+
+  useEffect(() => {
+    if (isClassSelectionModalOpen && pendingSlot) {
+      setDisplayData({ options: classSelectionOptions, slot: pendingSlot });
+    }
+  }, [isClassSelectionModalOpen, classSelectionOptions, pendingSlot]);
+
+  if (!displayData.slot) return null;
 
   return (
     <Dialog open={isClassSelectionModalOpen} onOpenChange={closeClassSelectionModal}>
@@ -41,14 +53,14 @@ export function ClassSelectionModal() {
             Chọn lớp học phần
           </DialogTitle>
           <DialogDescription>
-            Có {classSelectionOptions.length} lớp học vào <strong>{DAY_NAMES[pendingSlot.dayOfWeek]}</strong>, tiết{" "}
-            <strong>{pendingSlot.period}</strong>. Vui lòng chọn một lớp:
+            Có {displayData.options.length} lớp học vào <strong>{DAY_NAMES[displayData.slot.dayOfWeek]}</strong>, tiết{" "}
+            <strong>{displayData.slot.period}</strong>. Vui lòng chọn một lớp:
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[400px]">
           <div className="space-y-3 pr-4">
-            {classSelectionOptions.map((section) => (
+            {displayData.options.map((section) => (
               <ClassOption key={section.id} section={section} onSelect={() => selectClassFromModal(section)} />
             ))}
           </div>
