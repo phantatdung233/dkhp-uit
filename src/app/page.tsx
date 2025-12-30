@@ -343,33 +343,10 @@ export default function Home() {
                       <span className="hidden sm:inline">Tool</span>
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Tiện ích hỗ trợ ĐKHP trên Chrome</TooltipContent>
+                  <TooltipContent>Extension hỗ trợ ĐKHP</TooltipContent>
                 </Tooltip>
 
                 <FileUpload />
-
-                <DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" disabled={!hasSchedule}>
-                          <Camera className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent>{hasSchedule ? "Chụp ảnh TKB" : "Chưa có lịch để chụp"}</TooltipContent>
-                  </Tooltip>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleExportImage("download")} disabled={!hasSchedule}>
-                      <Download className="mr-2 h-4 w-4" />
-                      <span>Tải xuống</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExportImage("copy")} disabled={!hasSchedule}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      <span>Sao chép</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
 
                 <DropdownMenu>
                   <Tooltip>
@@ -390,6 +367,29 @@ export default function Home() {
                     <DropdownMenuItem onClick={handleImportCoursesCodes}>
                       <Download className="mr-2 h-4 w-4" />
                       <span>Nhập mã lớp</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" disabled={!hasSchedule}>
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>{hasSchedule ? "Chụp ảnh TKB" : "Chưa có lịch để chụp"}</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExportImage("download")} disabled={!hasSchedule}>
+                      <Download className="mr-2 h-4 w-4" />
+                      <span>Tải xuống</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportImage("copy")} disabled={!hasSchedule}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      <span>Sao chép</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
