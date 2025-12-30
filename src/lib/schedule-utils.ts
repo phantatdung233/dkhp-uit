@@ -1,126 +1,170 @@
-/**
- * Schedule Utilities
- * ==================
- * Các utility functions cho việc xử lý lịch học
- */
-
 import { isWithinInterval, areIntervalsOverlapping } from "date-fns";
-import type { ClassSection, Conflict, ConflictType, TimeSlot, HighlightedSlot, ScheduledClass } from "@/types";
+import type { ClassSection, Conflict, TimeSlot, HighlightedSlot, ScheduledClass } from "@/types";
 
-/**
- * Kiểm tra xung đột giữa 2 ClassSection
- * @param section1 - ClassSection thứ nhất
- * @param section2 - ClassSection thứ hai
- * @returns Conflict object nếu có xung đột, null nếu không
- */
+/* ---------------------------
+   Caches & indexes (module-scope)
+   --------------------------- */
+const periodCache = new Map<string, number[]>();
+const conflictMemo = new Map<string, Conflict | null>();
+const scheduleIndexCache = new WeakMap<ScheduledClass[], Map<string, ScheduledClass[]>>();
+
+/* ---------------------------
+   Small helpers
+   --------------------------- */
+function periodsKey(periods: string) {
+  return periods ?? "";
+}
+function cachedGetPeriodArray(periods: string): number[] {
+  const k = periodsKey(periods);
+  const cached = periodCache.get(k);
+  if (cached) return cached;
+  if (!periods || periods === "*") {
+    periodCache.set(k, []);
+    return [];
+  }
+  const arr = periods
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !Number.isNaN(n) && n > 0);
+  const uniqSorted = Array.from(new Set(arr)).sort((a, b) => a - b);
+  periodCache.set(k, uniqSorted);
+  return uniqSorted;
+}
+
+function makeSlotKey(day: number | null, period: number) {
+  return `${day}-${period}`;
+}
+
+function datesOverlapIfDefined(a: ClassSection, b: ClassSection) {
+  if (a.startDate && a.endDate && b.startDate && b.endDate) {
+    return areIntervalsOverlapping({ start: a.startDate, end: a.endDate }, { start: b.startDate, end: b.endDate });
+  }
+  // if not all defined, keep original behavior: treat as overlapping
+  return true;
+}
+
+/* ---------------------------
+   Optimized checkConflict w/ memo + efficient period intersection
+   --------------------------- */
 export function checkConflict(section1: ClassSection, section2: ClassSection): Conflict | null {
-  // Nếu cùng một lớp thì không conflict
-  if (section1.id === section2.id) {
-    return null;
+  // quick equality key to memoize unordered pair
+  const id1 = section1.id;
+  const id2 = section2.id;
+  const pairKey = id1 < id2 ? `${id1}|${id2}` : `${id2}|${id1}`;
+  if (conflictMemo.has(pairKey)) return conflictMemo.get(pairKey)!;
+
+  // Early rejects
+  if (id1 === id2) return memoize(pairKey, null);
+  if (section1.isFlexibleDay || section2.isFlexibleDay) return memoize(pairKey, null);
+  if (section1.isFlexiblePeriod || section2.isFlexiblePeriod) return memoize(pairKey, null);
+  if (section1.dayOfWeek !== section2.dayOfWeek) return memoize(pairKey, null);
+
+  // periods
+  const p1 = cachedGetPeriodArray(section1.periods);
+  const p2 = cachedGetPeriodArray(section2.periods);
+  if (p1.length === 0 || p2.length === 0) return memoize(pairKey, null); // one is flexible or empty -> no time overlap
+  // iterate smaller set
+  const [small, big] = p1.length <= p2.length ? [p1, new Set(p2)] : [p2, new Set(p1)];
+  const overlapping: number[] = [];
+  for (const x of small) {
+    if (big.has(x)) overlapping.push(x);
   }
+  if (overlapping.length === 0) return memoize(pairKey, null);
 
-  // Nếu một trong hai có thứ linh hoạt (*) thì không conflict về thời gian
-  if (section1.isFlexibleDay || section2.isFlexibleDay) {
-    return null;
-  }
+  // dates
+  if (!datesOverlapIfDefined(section1, section2)) return memoize(pairKey, null);
 
-  // Nếu một trong hai có tiết linh hoạt (*) thì không conflict về thời gian
-  if (section1.isFlexiblePeriod || section2.isFlexiblePeriod) {
-    return null;
-  }
-
-  // Kiểm tra cùng thứ
-  if (section1.dayOfWeek !== section2.dayOfWeek) {
-    return null;
-  }
-
-  // Kiểm tra overlap tiết học
-  const periods1 = getPeriodArray(section1.periods);
-  const periods2 = getPeriodArray(section2.periods);
-  const overlappingPeriods = periods1.filter((p) => periods2.includes(p));
-
-  if (overlappingPeriods.length === 0) {
-    return null;
-  }
-
-  // Kiểm tra overlap ngày học (nếu có thông tin NBD-NKT)
-  if (section1.startDate && section1.endDate && section2.startDate && section2.endDate) {
-    const interval1 = { start: section1.startDate, end: section1.endDate };
-    const interval2 = { start: section2.startDate, end: section2.endDate };
-
-    if (!areIntervalsOverlapping(interval1, interval2)) {
-      return null; // Khác khoảng thời gian, không conflict
-    }
-  }
-
-  // Tạo conflict slots
-  const conflictingSlots: TimeSlot[] = overlappingPeriods.map((period) => ({
+  const conflictingSlots: TimeSlot[] = overlapping.map((period) => ({
     id: `${section1.dayOfWeek}-${period}`,
     dayOfWeek: section1.dayOfWeek!,
     period,
   }));
 
-  return {
+  const conflict: Conflict = {
     id: `conflict-${section1.id}-${section2.id}`,
     type: "time_overlap",
-    message: `Trùng ${overlappingPeriods.length} tiết vào Thứ ${section1.dayOfWeek}`,
+    message: `Trùng ${overlapping.length} tiết vào Thứ ${section1.dayOfWeek}`,
     conflictingClasses: [section1, section2],
     conflictingSlots,
   };
+
+  return memoize(pairKey, conflict);
 }
 
-/**
- * Kiểm tra một ClassSection có xung đột với danh sách scheduled classes không
- * @param newSection - ClassSection mới muốn thêm
- * @param scheduledClasses - Danh sách lớp đã xếp
- * @returns Array of Conflicts
- */
-export function checkConflictWithSchedule(newSection: ClassSection, scheduledClasses: ScheduledClass[]): Conflict[] {
-  const conflicts: Conflict[] = [];
+function memoize(key: string, value: Conflict | null) {
+  conflictMemo.set(key, value);
+  return value;
+}
 
-  for (const scheduled of scheduledClasses) {
-    const conflict = checkConflict(newSection, scheduled.classSection);
-    if (conflict) {
-      conflicts.push(conflict);
+/* ---------------------------
+   Schedule index builder: Map<"day-period", ScheduledClass[]>
+   Uses WeakMap cache keyed by scheduledClasses array ref
+   --------------------------- */
+function buildScheduleIndex(scheduledClasses: ScheduledClass[]): Map<string, ScheduledClass[]> {
+  const cached = scheduleIndexCache.get(scheduledClasses);
+  if (cached) return cached;
+
+  const idx = new Map<string, ScheduledClass[]>();
+  for (const sc of scheduledClasses) {
+    const s = sc.classSection;
+    if (s.isFlexibleDay || s.isFlexiblePeriod || s.dayOfWeek == null) continue;
+    const periods = cachedGetPeriodArray(s.periods);
+    for (const p of periods) {
+      const k = makeSlotKey(s.dayOfWeek, p);
+      const arr = idx.get(k);
+      if (arr) arr.push(sc);
+      else idx.set(k, [sc]);
     }
   }
-
-  return conflicts;
+  scheduleIndexCache.set(scheduledClasses, idx);
+  return idx;
 }
 
-/**
- * Kiểm tra thiếu lớp thực hành/lý thuyết
- * @param section - ClassSection vừa được thêm
- * @param scheduledClasses - Danh sách lớp đã xếp
- * @param allSections - Tất cả các lớp học có sẵn
- * @returns Warning conflict nếu cần đăng ký thêm lớp
- */
+/* ---------------------------
+   checkConflictWithSchedule: use index to prune candidates
+   --------------------------- */
+export function checkConflictWithSchedule(newSection: ClassSection, scheduledClasses: ScheduledClass[]): Conflict[] {
+  // quick returns
+  if (newSection.isFlexibleDay || newSection.isFlexiblePeriod || newSection.dayOfWeek == null) return [];
+
+  const idx = buildScheduleIndex(scheduledClasses);
+  const periods = cachedGetPeriodArray(newSection.periods);
+  if (periods.length === 0) return []; // flexible / nothing
+
+  const found = new Map<string, Conflict>(); // dedupe by pair id
+  for (const p of periods) {
+    const key = makeSlotKey(newSection.dayOfWeek, p);
+    const candidates = idx.get(key);
+    if (!candidates) continue;
+    for (const cand of candidates) {
+      const c = checkConflict(newSection, cand.classSection);
+      if (c) found.set(c.id, c);
+    }
+  }
+  return Array.from(found.values());
+}
+
+/* ---------------------------
+   checkMissingPairedClass: small optimizations (index by course)
+   --------------------------- */
 export function checkMissingPairedClass(
   section: ClassSection,
   scheduledClasses: ScheduledClass[],
   allSections: ClassSection[]
 ): Conflict | null {
-  // Lấy tất cả sections của cùng môn học
-  const sameCouseSections = allSections.filter((s) => s.courseCode === section.courseCode);
+  const sameCourse = allSections.filter((s) => s.courseCode === section.courseCode);
+  const hasPractical = sameCourse.some((s) => s.isPractical);
+  const hasTheory = sameCourse.some((s) => !s.isPractical);
+  if (!hasPractical || !hasTheory) return null;
 
-  // Kiểm tra có lớp thực hành không
-  const hasPracticalSections = sameCouseSections.some((s) => s.isPractical);
-  const hasTheorySections = sameCouseSections.some((s) => !s.isPractical);
-
-  // Nếu môn không có cả 2 loại, không cần warning
-  if (!hasPracticalSections || !hasTheorySections) {
-    return null;
-  }
-
-  // Kiểm tra đã đăng ký lớp đi kèm chưa
-  const registeredSections = scheduledClasses
+  const registered = scheduledClasses
     .filter((sc) => sc.classSection.courseCode === section.courseCode)
     .map((sc) => sc.classSection);
 
-  const hasRegisteredPractical = registeredSections.some((s) => s.isPractical);
-  const hasRegisteredTheory = registeredSections.some((s) => !s.isPractical);
+  const hasRegPractical = registered.some((s) => s.isPractical);
+  const hasRegTheory = registered.some((s) => !s.isPractical);
 
-  if (section.isPractical && !hasRegisteredTheory) {
+  if (section.isPractical && !hasRegTheory) {
     return {
       id: `missing-theory-${section.id}`,
       type: "missing_theory",
@@ -130,10 +174,11 @@ export function checkMissingPairedClass(
     };
   }
 
-  if (!section.isPractical && !hasRegisteredPractical) {
-    // Tìm các mã lớp thực hành hợp lệ (bắt đầu bằng mã lớp LT + ".")
-    const validPracticalCodes = sameCouseSections
-      .filter((s) => s.isPractical && s.classCode.startsWith(section.classCode + "."))
+  if (!section.isPractical && !hasRegPractical) {
+    const validPracticalCodes = sameCourse
+      .filter(
+        (s) => s.isPractical && s.classCode && section.classCode && s.classCode.startsWith(section.classCode + ".")
+      )
       .map((s) => s.classCode);
 
     const message =
@@ -153,239 +198,179 @@ export function checkMissingPairedClass(
   return null;
 }
 
-/**
- * Lấy danh sách các slot được highlight khi đang kéo một course
- * @param sections - Các ClassSection của course đang kéo
- * @param scheduledClasses - Danh sách lớp đã xếp
- * @param allSections - Tất cả sections (dùng để check LT-TH pairing)
- * @returns Danh sách HighlightedSlot
- */
+/* ---------------------------
+   getHighlightedSlots: use index + course practical map
+   --------------------------- */
 export function getHighlightedSlots(
   sections: ClassSection[],
   scheduledClasses: ScheduledClass[],
   allSections?: ClassSection[]
 ): HighlightedSlot[] {
   const slotMap = new Map<string, HighlightedSlot>();
+  const idx = buildScheduleIndex(scheduledClasses);
 
+  // prepare course -> practicals map if needed (one pass)
+  const practicalsByCourse = new Map<string, ClassSection[]>();
+  if (allSections) {
+    for (const s of allSections) {
+      if (!s.isPractical) continue;
+      const arr = practicalsByCourse.get(s.courseCode) || [];
+      arr.push(s);
+      practicalsByCourse.set(s.courseCode, arr);
+    }
+  }
+
+  // iterate candidate sections
   for (const section of sections) {
-    // Bỏ qua section có thứ hoặc tiết linh hoạt
-    if (section.isFlexibleDay || section.isFlexiblePeriod || section.dayOfWeek === null) {
-      continue;
+    if (section.isFlexibleDay || section.isFlexiblePeriod || section.dayOfWeek == null) continue;
+    const periods = cachedGetPeriodArray(section.periods);
+    if (periods.length === 0) continue;
+
+    // quick conflict check using index: if any scheduled in any of its slots conflicts -> hasAnyConflict = true
+    let hasAnyConflict = false;
+    for (const p of periods) {
+      const key = makeSlotKey(section.dayOfWeek, p);
+      const cands = idx.get(key);
+      if (!cands) continue;
+      // test actual conflict with those candidates
+      for (const sc of cands) {
+        if (checkConflict(section, sc.classSection)) {
+          hasAnyConflict = true;
+          break;
+        }
+      }
+      if (hasAnyConflict) break;
     }
 
-    const periods = getPeriodArray(section.periods);
-
-    // Kiểm tra xem section này có bất kỳ xung đột nào với lịch hiện tại không
-    const conflicts = checkConflictWithSchedule(section, scheduledClasses);
-    let hasAnyConflict = conflicts.length > 0;
-
-    // Nếu là lớp LT và có allSections, kiểm tra xem có lớp TH nào khả dụng không
-    if (!section.isPractical && allSections) {
-      // Kiểm tra xem môn này có lớp TH không (bất kỳ lớp TH nào)
-      const courseHasPractical = allSections.some(
-        (s) => s.courseCode === section.courseCode && s.isPractical
-      );
-
-      // Nếu môn có lớp TH, kiểm tra xem lớp LT này có TH tương ứng không
+    // If LT, check practical availability - TẤT CẢ lớp TH thuộc LT này phải available
+    if (!hasAnyConflict && !section.isPractical && allSections) {
+      const courseHasPractical = practicalsByCourse.has(section.courseCode);
       if (courseHasPractical) {
-        const practicalSections = allSections.filter(
-          (s) => s.courseCode === section.courseCode && s.isPractical && s.classCode.startsWith(section.classCode + ".")
-        );
-
-        // Debug logging
-        if (section.classCode === "IT003.Q21") {
-          console.log("Debug IT003.Q21:", {
-            classCode: section.classCode,
-            courseHasPractical,
-            practicalSections: practicalSections.map(s => s.classCode),
-            scheduledClasses: scheduledClasses.map(sc => sc.classSection.classCode),
-          });
-        }
-
-        // Nếu lớp LT này không có TH tương ứng, đánh dấu conflict
-        if (practicalSections.length === 0) {
+        const practicals = practicalsByCourse
+          .get(section.courseCode)!
+          .filter((ps) => ps.classCode && section.classCode && ps.classCode.startsWith(section.classCode + "."));
+        if (practicals.length === 0) {
           hasAnyConflict = true;
-          if (section.classCode === "IT003.Q21") {
-            console.log("IT003.Q21 no practical sections found!");
-          }
         } else {
-          // Nếu có lớp TH, check xem có ít nhất 1 lớp TH nào không bị conflict không
-          const hasValidPractical = practicalSections.some(
-            (ps) => checkConflictWithSchedule(ps, scheduledClasses).length === 0
-          );
+          // Kiểm tra TẤT CẢ các lớp thực hành phải conflict-free
+          // Nếu bất kỳ lớp TH nào bị conflict -> LT này cũng bị conflict
+          const allPracticalsAvailable = practicals.every((ps) => {
+            // Nếu TH flexible -> coi như available
+            if (ps.isFlexibleDay || ps.isFlexiblePeriod || ps.dayOfWeek == null) return true;
 
-          // Debug logging
-          if (section.classCode === "IT003.Q21") {
-            console.log("IT003.Q21 hasValidPractical:", hasValidPractical);
-          }
+            // Kiểm tra TẤT CẢ tiết của TH này
+            const periods = cachedGetPeriodArray(ps.periods);
+            if (periods.length === 0) return true; // flexible
 
-          // Nếu không có TH nào khả dụng, đánh dấu LT này là conflict
-          if (!hasValidPractical) {
-            hasAnyConflict = true;
-          }
+            // Nếu có BẤT KỲ tiết nào bị conflict -> TH này không available
+            for (const p of periods) {
+              const k = makeSlotKey(ps.dayOfWeek, p);
+              const cands = idx.get(k) || [];
+              if (cands.some((sc) => checkConflict(ps, sc.classSection))) {
+                return false; // TH này bị conflict
+              }
+            }
+            return true; // TH này available
+          });
+
+          if (!allPracticalsAvailable) hasAnyConflict = true;
         }
       }
     }
 
+    // populate slots
     for (const period of periods) {
-      const slotId = `${section.dayOfWeek}-${period}`;
-
+      const slotId = makeSlotKey(section.dayOfWeek, period);
       if (!slotMap.has(slotId)) {
         slotMap.set(slotId, {
-          slot: {
-            id: slotId,
-            dayOfWeek: section.dayOfWeek,
-            period,
-          },
+          slot: { id: slotId, dayOfWeek: section.dayOfWeek, period },
           availableSections: [],
           hasConflict: false,
         });
       }
-
       const slot = slotMap.get(slotId)!;
-
-      if (hasAnyConflict) {
-        // Nếu section có xung đột (bao gồm cả TH conflict), đánh dấu slot này là có xung đột
-        slot.hasConflict = true;
-      } else {
-        // Nếu không có xung đột, thêm vào danh sách các lớp khả dụng cho slot này
-        slot.availableSections.push(section);
-      }
+      if (hasAnyConflict) slot.hasConflict = true;
+      else slot.availableSections.push(section);
     }
   }
 
-  // Xử lý lại hasConflict cho từng slot dựa trên availableSections
-  // Nếu slot có ít nhất 1 section available → hasConflict = false
-  // Nếu slot không có section nào available → hasConflict = true
-  for (const slot of Array.from(slotMap.values())) {
-    if (slot.availableSections.length > 0) {
-      slot.hasConflict = false;
-    } else if (slot.hasConflict) {
-      // Giữ nguyên hasConflict = true nếu đã được set
-      slot.hasConflict = true;
-    }
+  // finalize hasConflict: if availableSections > 0 -> false
+  for (const s of slotMap.values()) {
+    if (s.availableSections.length > 0) s.hasConflict = false;
   }
 
   return Array.from(slotMap.values());
 }
 
-/**
- * Lấy các ClassSection có thể thả vào một slot cụ thể
- * @param slot - TimeSlot muốn kiểm tra
- * @param sections - Các ClassSection có sẵn
- * @param scheduledClasses - Danh sách lớp đã xếp
- * @returns Danh sách ClassSection có thể thả
- */
+/* ---------------------------
+   getAvailableSectionsForSlot: index-based + memo
+   --------------------------- */
 export function getAvailableSectionsForSlot(
   slot: TimeSlot,
   sections: ClassSection[],
   scheduledClasses: ScheduledClass[]
 ): ClassSection[] {
-  return sections.filter((section) => {
-    // Bỏ qua section có thứ hoặc tiết linh hoạt
-    if (section.isFlexibleDay || section.isFlexiblePeriod) {
-      return false;
-    }
+  const idx = buildScheduleIndex(scheduledClasses);
+  // quick candidates: sections that have same day & include the period
+  const period = slot.period;
+  const day = slot.dayOfWeek;
+  const candidates = sections.filter(
+    (s) =>
+      !s.isFlexibleDay && !s.isFlexiblePeriod && s.dayOfWeek === day && cachedGetPeriodArray(s.periods).includes(period)
+  );
 
-    // Kiểm tra section có bao phủ slot này không
-    if (section.dayOfWeek !== slot.dayOfWeek) {
-      return false;
+  // now test conflicts only with scheduled classes in that exact slot (prunes a lot)
+  const scheduledInSlot = idx.get(makeSlotKey(day, period)) || [];
+  return candidates.filter((section) => {
+    // if there is any scheduled that conflicts -> not available
+    for (const sc of scheduledInSlot) {
+      if (checkConflict(section, sc.classSection)) return false;
     }
-
-    const periods = getPeriodArray(section.periods);
-    if (!periods.includes(slot.period)) {
-      return false;
-    }
-
-    // Kiểm tra không conflict
-    const conflicts = checkConflictWithSchedule(section, scheduledClasses);
-    return conflicts.length === 0;
+    return true;
   });
 }
 
-/**
- * Convert periods string thành array of numbers
- * Periods luôn ở dạng comma-separated sau khi parse: "1,2,3,4,5" hoặc "10,11,12"
- * @param periods - Chuỗi tiết (ví dụ: "1,2,3,4,5" hoặc "10,11,12")
- * @returns Array of period numbers
- */
+/* ---------------------------
+   Remaining helpers unchanged (fast)
+   --------------------------- */
 export function getPeriodArray(periods: string): number[] {
-  // Nếu là linh hoạt, return empty array
-  if (periods === "*") {
-    return [];
-  }
-
-  // Tất cả periods đều ở dạng comma-separated
-  return periods
-    .split(",")
-    .map((s) => parseInt(s.trim()))
-    .filter((n) => !isNaN(n) && n > 0);
+  return cachedGetPeriodArray(periods);
 }
 
-/**
- * Lấy thời gian bắt đầu và kết thúc của một ClassSection
- */
 export function getClassTimeRange(section: ClassSection): { start: number; end: number } {
-  return {
-    start: section.startPeriod,
-    end: section.startPeriod + section.periodCount - 1,
-  };
+  return { start: section.startPeriod, end: section.startPeriod + section.periodCount - 1 };
 }
 
-/**
- * Tính tổng số tín chỉ đã đăng ký
- * @param scheduledClasses - Danh sách lớp đã xếp
- * @returns Tổng số tín chỉ
- */
 export function getTotalCredits(scheduledClasses: ScheduledClass[]): number {
   const courseCredits = new Map<string, number>();
-
-  scheduledClasses.forEach((sc) => {
+  for (const sc of scheduledClasses) {
     const key = sc.classSection.courseCode;
-    if (!courseCredits.has(key) || sc.classSection.credits > courseCredits.get(key)!) {
-      courseCredits.set(key, sc.classSection.credits);
-    }
-  });
-
-  return Array.from(courseCredits.values()).reduce((sum, credits) => sum + credits, 0);
-}
-
-/**
- * Lấy danh sách môn học unique từ scheduled classes
- */
-export function getRegisteredCourses(scheduledClasses: ScheduledClass[]): string[] {
-  const courses = new Set<string>();
-  scheduledClasses.forEach((sc) => courses.add(sc.classSection.courseCode));
-  return Array.from(courses);
-}
-
-/**
- * Kiểm tra một ngày có nằm trong khoảng học của section không
- */
-export function isDateInSection(date: Date, section: ClassSection): boolean {
-  if (!section.startDate || !section.endDate) {
-    return true; // Nếu không có thông tin ngày, coi như luôn áp dụng
+    const credits = sc.classSection.credits;
+    if (!courseCredits.has(key) || credits > courseCredits.get(key)!) courseCredits.set(key, credits);
   }
-
-  return isWithinInterval(date, {
-    start: section.startDate,
-    end: section.endDate,
-  });
+  let sum = 0;
+  for (const v of courseCredits.values()) sum += v;
+  return sum;
 }
 
-/**
- * Group sections theo giờ học (cùng thứ và tiết)
- */
+export function getRegisteredCourses(scheduledClasses: ScheduledClass[]): string[] {
+  const set = new Set<string>();
+  for (const sc of scheduledClasses) set.add(sc.classSection.courseCode);
+  return Array.from(set);
+}
+
+export function isDateInSection(date: Date, section: ClassSection): boolean {
+  if (!section.startDate || !section.endDate) return true;
+  return isWithinInterval(date, { start: section.startDate, end: section.endDate });
+}
+
 export function groupSectionsByTime(sections: ClassSection[]): Map<string, ClassSection[]> {
-  const groups = new Map<string, ClassSection[]>();
-
-  sections.forEach((section) => {
-    const key = `${section.dayOfWeek}-${section.periods}`;
-    if (!groups.has(key)) {
-      groups.set(key, []);
-    }
-    groups.get(key)!.push(section);
-  });
-
-  return groups;
+  const map = new Map<string, ClassSection[]>();
+  for (const s of sections) {
+    const key = `${s.dayOfWeek}-${s.periods}`;
+    const arr = map.get(key) || [];
+    arr.push(s);
+    map.set(key, arr);
+  }
+  return map;
 }

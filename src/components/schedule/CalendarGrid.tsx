@@ -8,7 +8,7 @@
  * Hỗ trợ click-to-place khi đã chọn môn học từ sidebar
  */
 
-import React, { useMemo, useCallback, useState } from "react";
+import React, { useMemo, useCallback, useState, useRef } from "react";
 import { X, Clock, MapPin, User, AlertTriangle, Calendar, Users, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,13 @@ const DAYS = [2, 3, 4, 5, 6, 7]; // Thứ 2 - Thứ 7
 const PERIODS = Array.from({ length: 15 }, (_, i) => i + 1); // Tiết 1-15
 const CELL_HEIGHT = 48; // px
 const MOBILE_DAYS_PER_PAGE = 3;
+const MOBILE_SWIPE_THRESHOLD = 50;
 
-export function CalendarGrid() {
+interface CalendarGridProps {
+  showFullWeek?: boolean;
+}
+
+export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
   const {
     scheduledClasses,
     removeClassFromSchedule,
@@ -48,6 +53,48 @@ export function CalendarGrid() {
     const startIdx = mobileDayPage * MOBILE_DAYS_PER_PAGE;
     return DAYS.slice(startIdx, startIdx + MOBILE_DAYS_PER_PAGE);
   }, [mobileDayPage]);
+
+  const mobileDays = showFullWeek ? DAYS : visibleDays;
+  const canSwipe = !showFullWeek;
+
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!canSwipe) return;
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!canSwipe) return;
+    if (!touchStartRef.current) return;
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      event.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!canSwipe) return;
+    if (!touchStartRef.current) return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+
+    if (Math.abs(deltaX) < MOBILE_SWIPE_THRESHOLD || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      setMobileDayPage((page) => Math.min(totalMobilePages - 1, page + 1));
+    } else {
+      setMobileDayPage((page) => Math.max(0, page - 1));
+    }
+  };
 
   const { regularClasses, flexibleClasses } = useMemo(() => {
     const regular: ScheduledClass[] = [];
@@ -171,10 +218,20 @@ export function CalendarGrid() {
     return PERIODS.filter((p) => p <= maxPeriodUsed);
   }, [maxPeriodUsed]);
 
+  const mobileHeaderClass = showFullWeek ? "hidden" : "flex flex-1 md:hidden bg-white";
+  const desktopHeaderClass = showFullWeek ? "flex flex-1 bg-white" : "hidden md:flex flex-1 bg-white";
+  const mobileSlotClass = showFullWeek ? "hidden" : "flex flex-1 md:hidden";
+  const desktopSlotClass = showFullWeek ? "flex flex-1" : "hidden md:flex flex-1";
+
   return (
     <div className="flex-1 overflow-auto bg-white">
       {/* Mobile day navigation */}
-      <div className="flex items-center justify-between px-2 py-1 bg-gray-50 border-b md:hidden">
+      <div
+        className={cn(
+          "flex items-center justify-between px-2 py-1 bg-gray-50 border-b md:hidden",
+          showFullWeek && "hidden"
+        )}
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -185,7 +242,7 @@ export function CalendarGrid() {
           <ChevronLeft className="h-5 w-5" />
         </Button>
         <span className="text-sm font-medium text-gray-600">
-          {DAY_NAMES[visibleDays[0]]} - {DAY_NAMES[visibleDays[visibleDays.length - 1]]}
+          {DAY_NAMES[mobileDays[0]]} - {DAY_NAMES[mobileDays[mobileDays.length - 1]]}
         </span>
         <Button
           variant="ghost"
@@ -198,22 +255,28 @@ export function CalendarGrid() {
         </Button>
       </div>
 
-      <div id="schedule-calendar" className="bg-white p-2 sm:p-4">
+      <div
+        id="schedule-calendar"
+        className="bg-white p-2 sm:p-4"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {/* Header row - Days */}
         <div className="flex border-b sticky top-0 bg-white z-20 shadow-sm">
           <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 sm:p-2 z-20">
             <span className="text-[10px] sm:text-xs font-medium text-gray-500">Tiết / Thứ</span>
           </div>
           {/* Mobile: show only visible days */}
-          <div className="flex flex-1 md:hidden bg-white">
-            {visibleDays.map((day) => (
+          <div className={mobileHeaderClass}>
+            {mobileDays.map((day) => (
               <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-1 text-center z-20">
                 <span className="font-semibold text-gray-700 text-xs">{DAY_NAMES[day]}</span>
               </div>
             ))}
           </div>
           {/* Desktop: show all days */}
-          <div className="hidden md:flex flex-1 bg-white">
+          <div className={desktopHeaderClass}>
             {DAYS.map((day) => (
               <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-3 text-center z-20">
                 <span className="font-semibold text-gray-700 text-base">{DAY_NAMES[day]}</span>
@@ -232,14 +295,14 @@ export function CalendarGrid() {
                 <span className="text-[9px] sm:text-xs text-gray-400">{PERIOD_TIMES[period]?.start}</span>
               </div>
 
-              {/* Mobile: show only visible days */}
-              <div className="flex flex-1 md:hidden">
-                {visibleDays.map((day) => (
+              {/* Mobile: show currently paged days */}
+              <div className={mobileSlotClass}>
+                {mobileDays.map((day) => (
                   <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
                 ))}
               </div>
               {/* Desktop: show all days */}
-              <div className="hidden md:flex flex-1">
+              <div className={desktopSlotClass}>
                 {DAYS.map((day) => (
                   <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
                 ))}
@@ -251,14 +314,14 @@ export function CalendarGrid() {
           <HighlightedBlocksOverlay
             highlightedSlots={highlightedSlots}
             maxPeriod={maxPeriodUsed}
-            visibleDays={visibleDays}
+            visibleDays={mobileDays}
           />
 
           {/* Scheduled classes overlay */}
           <ScheduledClassesOverlay
             scheduledClasses={regularClasses}
             onRemove={removeClassFromSchedule}
-            visibleDays={visibleDays}
+            visibleDays={mobileDays}
           />
         </div>
 

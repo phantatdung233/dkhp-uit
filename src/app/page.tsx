@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Upload, Trash2, AlertTriangle, CheckCircle2, Camera, Copy, Info, Download, FileText } from "lucide-react";
+import { Trash2, AlertTriangle, CheckCircle2, Camera, Copy, Info, Download, FileText } from "lucide-react";
 
 import { SchedulePlanner, FileUpload, ScheduleManager } from "@/components/schedule";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -40,17 +39,11 @@ export default function Home() {
   } = useScheduleStore();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [forceFullCalendar, setForceFullCalendar] = useState(false);
 
   const hasData = allSections.length > 0;
   const hasSchedule = scheduledClasses.length > 0;
 
-  // Tính số môn đã đăng ký
-  const registeredCourseCount = useMemo(() => {
-    const courseSet = new Set(scheduledClasses.map((sc) => sc.classSection.courseCode));
-    return courseSet.size;
-  }, [scheduledClasses]);
-
-  // Copy all course codes
   const handleCopyCoursesCodes = () => {
     const classCodes = scheduledClasses
       .map((sc) => sc.classSection.classCode)
@@ -66,37 +59,31 @@ export default function Home() {
     toast.success(`Đã sao chép ${scheduledClasses.length} mã lớp`);
   };
 
-  // Handle clear schedule with confirmation
   const handleClearSchedule = () => {
     clearSchedule();
     setShowClearConfirm(false);
     toast.success("Đã xóa lịch đã xếp");
   };
 
-  // Export schedule to Image
   const handleExportImage = async (action: "download" | "copy") => {
-    // Check minimum credits requirement
-    if (totalCredits < 14) {
-      toast.error("Cần đăng ký tối thiểu 14 tín chỉ để chụp ảnh thời khóa biểu");
-      return;
-    }
+    setForceFullCalendar(true);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     const node = document.getElementById("schedule-calendar");
     if (!node) {
+      setForceFullCalendar(false);
       toast.error("Không tìm thấy lịch để xuất ảnh");
       return;
     }
 
     try {
       toast.loading(action === "download" ? "Đang tạo ảnh..." : "Đang sao chép...", { id: "export-image" });
-
-      // Đợi một chút để đảm bảo UI ổn định
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       const dataUrl = await toPng(node, {
         backgroundColor: "#ffffff",
         quality: 1,
-        pixelRatio: 2, // Tăng độ phân giải
+        pixelRatio: 2,
         style: {
           overflow: "visible",
         },
@@ -109,7 +96,6 @@ export default function Home() {
         link.click();
         toast.success("Đã tải ảnh thời khóa biểu", { id: "export-image" });
       } else {
-        // Copy to clipboard
         const blob = await (await fetch(dataUrl)).blob();
         await navigator.clipboard.write([
           new ClipboardItem({
@@ -125,6 +111,8 @@ export default function Home() {
       } else {
         toast.error("Lỗi khi xuất ảnh", { id: "export-image" });
       }
+    } finally {
+      setForceFullCalendar(false);
     }
   };
 
@@ -238,19 +226,12 @@ export default function Home() {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              disabled={totalCredits < 14}
-                              className={cn(totalCredits < 14 && "opacity-50 cursor-not-allowed")}
-                            >
+                            <Button variant="outline" size="icon">
                               <Camera className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          {totalCredits < 14 ? "Cần tối thiểu 14 tín chỉ để chụp ảnh" : "Chụp ảnh thời khóa biểu"}
-                        </TooltipContent>
+                        <TooltipContent>{"Chụp ảnh TKB"}</TooltipContent>
                       </Tooltip>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleExportImage("download")}>
@@ -290,7 +271,7 @@ export default function Home() {
 
         {/* Main content */}
         <div className="flex-1 overflow-hidden">
-          <SchedulePlanner />
+          <SchedulePlanner forceFullCalendar={forceFullCalendar} />
         </div>
 
         {/* Clear schedule confirmation dialog */}

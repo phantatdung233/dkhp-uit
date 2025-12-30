@@ -12,19 +12,20 @@ import { Menu, X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { CalendarGrid } from "./CalendarGrid";
 import { ClassSelectionModal } from "./ClassSelectionModal";
-import { WarningsPanel } from "./WarningsPanel";
 
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useScheduleStore } from "@/store/schedule-store";
 import { cn } from "@/lib/utils";
 
-export function SchedulePlanner() {
+interface SchedulePlannerProps {
+  forceFullCalendar?: boolean;
+}
+
+export function SchedulePlanner({ forceFullCalendar = false }: SchedulePlannerProps) {
   const { pendingTheorySection, updateHighlightedSlots } = useScheduleStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Khi component mount, nếu có pendingTheorySection (từ persist state sau reload)
-  // thì tự động highlight các lớp TH tương ứng
   useEffect(() => {
     if (pendingTheorySection) {
       useScheduleStore.setState({ clickSelectedType: "practical" });
@@ -32,7 +33,6 @@ export function SchedulePlanner() {
     }
   }, [pendingTheorySection, updateHighlightedSlots]);
 
-  // Close sidebar when clicking outside on mobile
   const handleOverlayClick = () => {
     setIsSidebarOpen(false);
   };
@@ -66,15 +66,12 @@ export function SchedulePlanner() {
 
         {/* Main calendar area */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <CalendarGrid />
+          <CalendarGrid showFullWeek={forceFullCalendar} />
         </div>
       </div>
 
       {/* Class selection modal */}
       <ClassSelectionModal />
-
-      {/* Warnings panel */}
-      <WarningsPanel />
     </TooltipProvider>
   );
 }

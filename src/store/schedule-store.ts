@@ -387,6 +387,7 @@ export const useScheduleStore = create<ScheduleState>()(
             totalCredits: 0,
             schedules: newSchedules,
           });
+          get().updateHighlightedSlots();
         },
 
         // ============ Multi-schedule Actions ============
