@@ -1,0 +1,10 @@
+# File lịch mẫu sẽ được đặt tại đây
+
+Để thêm file lịch mẫu:
+1. Tải file lịch từ https://daa.uit.edu.vn/thongbaochinhquy
+2. Đổi tên file thành sample-cntt.xlsx hoặc sample-khmt.xlsx
+3. Đặt file vào thư mục này
+
+Hoặc bạn có thể tạo file Excel mẫu với cấu trúc:
+- Sheet đầu tiên chứa dữ liệu
+- Các cột: STT, Mã LHP, Tên HP, TC, Lớp HP, Giảng viên, Lịch học, Phòng, Ngày BĐ, Ngày KT, ...

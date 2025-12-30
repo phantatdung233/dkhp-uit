@@ -9,11 +9,26 @@
  */
 
 import React, { useMemo, useCallback, useState, useRef } from "react";
-import { X, Clock, MapPin, User, AlertTriangle, Calendar, Users, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  X,
+  Clock,
+  MapPin,
+  User,
+  AlertTriangle,
+  Calendar,
+  Users,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  GraduationCap,
+  Trash2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { useScheduleStore, useSlotHighlight } from "@/store/schedule-store";
 import type { ClassSection, ScheduledClass, HighlightedSlot } from "@/types";
@@ -47,6 +62,8 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
 
   // Mobile day pagination
   const [mobileDayPage, setMobileDayPage] = useState(0);
+  // Mobile detail dialog
+  const [selectedClassForDetail, setSelectedClassForDetail] = useState<ScheduledClass | null>(null);
   const totalMobilePages = Math.ceil(DAYS.length / MOBILE_DAYS_PER_PAGE);
 
   const visibleDays = useMemo(() => {
@@ -340,12 +357,44 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
                 <FlexibleSectionSelector sections={flexibleSectionsFromSelected} />
               )}
               {flexibleClasses.length > 0 && (
-                <FlexibleClassesList classes={flexibleClasses} onRemove={removeClassFromSchedule} />
+                <FlexibleClassesList
+                  classes={flexibleClasses}
+                  onRemove={removeClassFromSchedule}
+                  onClassClick={setSelectedClassForDetail}
+                />
               )}
             </div>
           </div>
         )}
       </div>
+
+      {/* Mobile detail dialog */}
+      <Dialog open={selectedClassForDetail !== null} onOpenChange={() => setSelectedClassForDetail(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Thông tin môn học</DialogTitle>
+          </DialogHeader>
+          {selectedClassForDetail && <ClassDetailContent scheduledClass={selectedClassForDetail} />}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (selectedClassForDetail) {
+                  removeClassFromSchedule(selectedClassForDetail.id);
+                  setSelectedClassForDetail(null);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Xóa khỏi lịch
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedClassForDetail(null)}>
+              Đóng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -694,6 +743,8 @@ interface ScheduledClassesOverlayProps {
 }
 
 function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: ScheduledClassesOverlayProps) {
+  const [selectedClassForDetail, setSelectedClassForDetail] = useState<ScheduledClass | null>(null);
+
   // Group by courseCode for consistent colors
   const courseColorMap = new Map<string, number>();
   let colorIndex = 0;
@@ -705,69 +756,101 @@ function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDays }: Sc
   });
 
   return (
-    <div className="absolute inset-0 pointer-events-none z-10 left-14 sm:left-20">
-      {scheduledClasses.map((scheduledClass) => {
-        const section = scheduledClass.classSection;
+    <>
+      <div className="absolute inset-0 pointer-events-none z-10 left-14 sm:left-20">
+        {scheduledClasses.map((scheduledClass) => {
+          const section = scheduledClass.classSection;
 
-        // Skip if flexible day or no day
-        if (section.dayOfWeek === null) return null;
+          // Skip if flexible day or no day
+          if (section.dayOfWeek === null) return null;
 
-        const desktopDayIndex = DAYS.indexOf(section.dayOfWeek);
-        const mobileDayIndex = visibleDays.indexOf(section.dayOfWeek);
+          const desktopDayIndex = DAYS.indexOf(section.dayOfWeek);
+          const mobileDayIndex = visibleDays.indexOf(section.dayOfWeek);
 
-        if (desktopDayIndex === -1) return null;
+          if (desktopDayIndex === -1) return null;
 
-        const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
-        const desktopLeft = `calc(${desktopDayIndex} * ${desktopDayWidth})`;
+          const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
+          const desktopLeft = `calc(${desktopDayIndex} * ${desktopDayWidth})`;
 
-        const mobileDayWidth = `calc((100%) / ${visibleDays.length})`;
-        const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
+          const mobileDayWidth = `calc((100%) / ${visibleDays.length})`;
+          const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
 
-        const top = (section.startPeriod - 1) * CELL_HEIGHT;
-        const height = section.periodCount * CELL_HEIGHT - 4; // -4 for gap
+          const top = (section.startPeriod - 1) * CELL_HEIGHT;
+          const height = section.periodCount * CELL_HEIGHT - 4; // -4 for gap
 
-        const colorIdx = courseColorMap.get(section.courseCode) || 0;
-        const colorClass = COURSE_COLORS[colorIdx % COURSE_COLORS.length];
+          const colorIdx = courseColorMap.get(section.courseCode) || 0;
+          const colorClass = COURSE_COLORS[colorIdx % COURSE_COLORS.length];
 
-        return (
-          <React.Fragment key={scheduledClass.id}>
-            {/* Desktop card */}
-            <ScheduledClassCard
-              scheduledClass={scheduledClass}
-              className="hidden md:block"
-              style={{
-                position: "absolute",
-                left: desktopLeft,
-                top: top + 2,
-                width: desktopDayWidth,
-                height,
-                padding: "0 4px",
-              }}
-              colorClass={colorClass}
-              onRemove={() => onRemove(scheduledClass.id)}
-            />
-            {/* Mobile card */}
-            {mobileDayIndex !== -1 && (
+          return (
+            <React.Fragment key={scheduledClass.id}>
+              {/* Desktop card */}
               <ScheduledClassCard
                 scheduledClass={scheduledClass}
-                className="md:hidden"
+                className="hidden md:block"
                 style={{
                   position: "absolute",
-                  left: mobileLeft,
+                  left: desktopLeft,
                   top: top + 2,
-                  width: mobileDayWidth,
+                  width: desktopDayWidth,
                   height,
-                  padding: "0 2px",
+                  padding: "0 4px",
                 }}
                 colorClass={colorClass}
                 onRemove={() => onRemove(scheduledClass.id)}
-                compact
               />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
+              {/* Mobile card */}
+              {mobileDayIndex !== -1 && (
+                <ScheduledClassCard
+                  scheduledClass={scheduledClass}
+                  className="md:hidden"
+                  style={{
+                    position: "absolute",
+                    left: mobileLeft,
+                    top: top + 2,
+                    width: mobileDayWidth,
+                    height,
+                    padding: "0 2px",
+                  }}
+                  colorClass={colorClass}
+                  onRemove={() => onRemove(scheduledClass.id)}
+                  compact
+                  isMobile
+                  onClick={() => setSelectedClassForDetail(scheduledClass)}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* Mobile detail dialog */}
+      <Dialog open={selectedClassForDetail !== null} onOpenChange={() => setSelectedClassForDetail(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Thông tin môn học</DialogTitle>
+          </DialogHeader>
+          {selectedClassForDetail && <ClassDetailContent scheduledClass={selectedClassForDetail} />}
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (selectedClassForDetail) {
+                  onRemove(selectedClassForDetail.id);
+                  setSelectedClassForDetail(null);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Xóa khỏi lịch
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedClassForDetail(null)}>
+              Đóng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -780,6 +863,8 @@ interface ScheduledClassCardProps {
   onRemove: () => void;
   className?: string;
   compact?: boolean;
+  isMobile?: boolean;
+  onClick?: () => void;
 }
 
 function ScheduledClassCard({
@@ -789,108 +874,125 @@ function ScheduledClassCard({
   onRemove,
   className,
   compact: mobileCompact,
+  isMobile,
+  onClick,
 }: ScheduledClassCardProps) {
   const section = scheduledClass.classSection;
   const isCompact = section.periodCount <= 2 || mobileCompact;
 
-  return (
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Chỉ gọi onClick khi ở mobile và không phải click vào nút xóa
+    if (isMobile && onClick && !(e.target as HTMLElement).closest("button")) {
+      onClick();
+    }
+  };
+
+  const cardContent = (
     <div style={style} className={cn("pointer-events-auto group", className)}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
+      <div
+        onClick={handleCardClick}
+        className={cn(
+          "h-full w-full rounded-md border-2 overflow-hidden relative",
+          "shadow-sm hover:shadow-md transition-shadow",
+          isMobile ? "cursor-pointer" : "cursor-default",
+          mobileCompact ? "p-1" : "p-1.5",
+          colorClass
+        )}
+      >
+        {/* Remove button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        >
+          <X className="h-3 w-3 text-gray-600" />
+        </button>
+
+        {/* Content */}
+        <div className="h-full flex flex-col">
+          <p className={cn("font-medium mt-0.5", mobileCompact ? "text-[9px]" : "text-[11px]")}>{section.classCode}</p>
+          <h4
             className={cn(
-              "h-full w-full rounded-md border-2 overflow-hidden relative",
-              "shadow-sm hover:shadow-md transition-shadow cursor-pointer",
-              mobileCompact ? "p-1" : "p-1.5",
-              colorClass
+              "font-bold leading-tight",
+              mobileCompact ? "text-[10px] truncate" : "text-[13px]",
+              isCompact ? "truncate" : "break-words"
             )}
           >
-            {/* Remove button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
-              className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            >
-              <X className="h-3 w-3 text-gray-600" />
-            </button>
+            {section.courseName}
+          </h4>
 
-            {/* Content */}
-            <div className="h-full flex flex-col">
-              <p className={cn("font-medium mt-0.5", mobileCompact ? "text-[9px]" : "text-[11px]")}>
-                {section.classCode}
-              </p>
-              <h4
-                className={cn(
-                  "font-bold leading-tight",
-                  mobileCompact ? "text-[10px] truncate" : "text-[13px]",
-                  isCompact ? "truncate" : "break-words"
-                )}
-              >
-                {section.courseName}
-              </h4>
-
-              {!isCompact ? (
-                <div className="mt-1 space-y-0.5">
-                  <div className="flex items-center gap-1 text-[12px] opacity-70">
-                    <User className="h-3 w-3 shrink-0" />
-                    <span className="font-bold truncate">{section.lecturer}</span>
-                  </div>
-                  {section.room && (
-                    <div className="flex items-center gap-1 text-[12px] opacity-70">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="font-bold break-words">{section.room}</span>
-                    </div>
-                  )}
-                  {(section.startDate || section.endDate) && (
-                    <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      <span className="font-bold break-words">
-                        {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
-                        {section.endDate ? format(section.endDate, "dd/MM") : "?"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="mt-auto space-y-0.5">
-                  <div className="flex items-center gap-1 text-[10px] sm:text-[12px] opacity-70">
-                    <User className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
-                    <span className="font-bold truncate">{section.lecturer}</span>
-                  </div>
-                  {section.room && (
-                    <div className="flex items-center gap-1 text-[10px] sm:text-[12px] opacity-70">
-                      <MapPin className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
-                      <span className="font-bold truncate">{section.room}</span>
-                    </div>
-                  )}
-                  {mobileCompact && section.periodCount >= 3 && (section.startDate || section.endDate) && (
-                    <div className="flex items-center gap-1 text-[9px] opacity-60 border-t border-black/5 pt-0.5 mt-0.5">
-                      <Calendar className="h-2 w-2 shrink-0" />
-                      <span className="truncate">
-                        {section.startDate ? format(section.startDate, "dd/MM") : "?"}-
-                        {section.endDate ? format(section.endDate, "dd/MM") : "?"}
-                      </span>
-                    </div>
-                  )}
+          {!isCompact ? (
+            <div className="mt-1 space-y-0.5">
+              <div className="flex items-center gap-1 text-[12px] opacity-70">
+                <User className="h-3 w-3 shrink-0" />
+                <span className="font-bold truncate">{section.lecturer}</span>
+              </div>
+              {section.room && (
+                <div className="flex items-center gap-1 text-[12px] opacity-70">
+                  <MapPin className="h-3 w-3 shrink-0" />
+                  <span className="font-bold break-words">{section.room}</span>
                 </div>
               )}
-
-              <Badge
-                variant={section.isPractical ? "warning" : "info"}
-                className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
-              >
-                {section.isPractical ? "TH" : "LT"}
-              </Badge>
+              {(section.startDate || section.endDate) && (
+                <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
+                  <Calendar className="h-3 w-3 shrink-0" />
+                  <span className="font-bold break-words">
+                    {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
+                    {section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="max-w-xs">
-          <ClassSectionTooltip section={section} />
-        </TooltipContent>
-      </Tooltip>
+          ) : (
+            <div className="mt-auto space-y-0.5">
+              <div className="flex items-center gap-1 text-[10px] sm:text-[12px] opacity-70">
+                <User className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
+                <span className="font-bold truncate">{section.lecturer}</span>
+              </div>
+              {section.room && (
+                <div className="flex items-center gap-1 text-[10px] sm:text-[12px] opacity-70">
+                  <MapPin className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
+                  <span className="font-bold truncate">{section.room}</span>
+                </div>
+              )}
+              {mobileCompact && section.periodCount >= 3 && (section.startDate || section.endDate) && (
+                <div className="flex items-center gap-1 text-[9px] opacity-60 border-t border-black/5 pt-0.5 mt-0.5">
+                  <Calendar className="h-2 w-2 shrink-0" />
+                  <span className="truncate">
+                    {section.startDate ? format(section.startDate, "dd/MM") : "?"}-
+                    {section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <Badge
+            variant={section.isPractical ? "warning" : "info"}
+            className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
+          >
+            {section.isPractical ? "TH" : "LT"}
+          </Badge>
+        </div>
+      </div>
     </div>
+  );
+
+  // Trên mobile không hiển thị tooltip, chỉ có click
+  if (isMobile) {
+    return cardContent;
+  }
+
+  // Trên desktop hiển thị tooltip khi hover
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{cardContent}</TooltipTrigger>
+      <TooltipContent side="right" className="max-w-xs">
+        <ClassSectionTooltip section={section} />
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -899,9 +1001,10 @@ function ScheduledClassCard({
 interface FlexibleClassesListProps {
   classes: ScheduledClass[];
   onRemove: (id: string) => void;
+  onClassClick?: (scheduledClass: ScheduledClass) => void;
 }
 
-function FlexibleClassesList({ classes, onRemove }: FlexibleClassesListProps) {
+function FlexibleClassesList({ classes, onRemove, onClassClick }: FlexibleClassesListProps) {
   const { scheduledClasses } = useScheduleStore();
 
   // Build color map from ALL scheduled classes (both regular and flexible) for consistent colors
@@ -936,68 +1039,68 @@ function FlexibleClassesList({ classes, onRemove }: FlexibleClassesListProps) {
         const colorClass = COURSE_COLORS[colorIdx % COURSE_COLORS.length];
         const flexibleType = getFlexibleType(section);
 
+        const handleFlexibleCardClick = () => {
+          if (onClassClick) {
+            onClassClick(scheduledClass);
+          }
+        };
+
         return (
           <div key={scheduledClass.id} className="group relative">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  className={cn(
-                    "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative cursor-pointer",
-                    "shadow-sm hover:shadow-md transition-shadow",
-                    colorClass
-                  )}
-                >
-                  {/* Remove button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove(scheduledClass.id);
-                    }}
-                    className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  >
-                    <X className="h-3 w-3 text-gray-600" />
-                  </button>
+            <div
+              onClick={handleFlexibleCardClick}
+              className={cn(
+                "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative cursor-pointer",
+                "shadow-sm hover:shadow-md transition-shadow md:cursor-default",
+                colorClass
+              )}
+            >
+              {/* Remove button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(scheduledClass.id);
+                }}
+                className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              >
+                <X className="h-3 w-3 text-gray-600" />
+              </button>
 
-                  {/* Content */}
-                  <div className="h-full flex flex-col">
-                    <p className="font-medium text-[11px] mt-0.5">{section.classCode}</p>
-                    <h4 className="font-bold leading-tight text-[13px] line-clamp-1">{section.courseName}</h4>
+              {/* Content */}
+              <div className="h-full flex flex-col">
+                <p className="font-medium text-[11px] mt-0.5">{section.classCode}</p>
+                <h4 className="font-bold leading-tight text-[13px] line-clamp-1">{section.courseName}</h4>
 
-                    <div className="mt-1 space-y-0.5">
-                      <div className="flex items-center gap-1 text-[12px] opacity-70">
-                        <User className="h-3 w-3 shrink-0" />
-                        <span className="font-bold truncate">{section.lecturer}</span>
-                      </div>
-                      {section.room && (
-                        <div className="flex items-center gap-1 text-[12px] opacity-70">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="font-bold truncate">{section.room}</span>
-                        </div>
-                      )}
-                      {(section.startDate || section.endDate) && (
-                        <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
-                          <Calendar className="h-3 w-3 shrink-0" />
-                          <span className="font-bold truncate">
-                            {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
-                            {section.endDate ? format(section.endDate, "dd/MM") : "?"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <Badge
-                      variant={section.isPractical ? "warning" : "info"}
-                      className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
-                    >
-                      {section.isPractical ? "TH" : "LT"}
-                    </Badge>
+                <div className="mt-1 space-y-0.5">
+                  <div className="flex items-center gap-1 text-[12px] opacity-70">
+                    <User className="h-3 w-3 shrink-0" />
+                    <span className="font-bold truncate">{section.lecturer}</span>
                   </div>
+                  {section.room && (
+                    <div className="flex items-center gap-1 text-[12px] opacity-70">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="font-bold truncate">{section.room}</span>
+                    </div>
+                  )}
+                  {(section.startDate || section.endDate) && (
+                    <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
+                      <Calendar className="h-3 w-3 shrink-0" />
+                      <span className="font-bold truncate">
+                        {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
+                        {section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-xs">
-                <FlexibleClassTooltip section={section} flexibleType={flexibleType} />
-              </TooltipContent>
-            </Tooltip>
+
+                <Badge
+                  variant={section.isPractical ? "warning" : "info"}
+                  className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
+                >
+                  {section.isPractical ? "TH" : "LT"}
+                </Badge>
+              </div>
+            </div>
           </div>
         );
       })}
@@ -1208,6 +1311,83 @@ function ClassSectionTooltip({ section }: ClassSectionTooltipProps) {
       )}
 
       <div className="flex gap-2">
+        <Badge variant="secondary">{section.credits} tín chỉ</Badge>
+        {section.maxStudents && <Badge variant="outline">Sĩ số: {section.maxStudents}</Badge>}
+      </div>
+    </div>
+  );
+}
+
+// ============ Class Detail Content (for Dialog) ============
+
+interface ClassDetailContentProps {
+  scheduledClass: ScheduledClass;
+}
+
+function ClassDetailContent({ scheduledClass }: ClassDetailContentProps) {
+  const section = scheduledClass.classSection;
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="font-semibold text-lg">{section.courseName}</h4>
+        <p className="text-sm text-gray-500">{section.classCode}</p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <User className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs text-gray-500">Giảng viên</p>
+            <p className="font-medium">{section.lecturer}</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <Clock className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs text-gray-500">Thời gian</p>
+            <p className="font-medium">
+              {section.dayOfWeek ? DAY_NAMES[section.dayOfWeek] : "Linh hoạt"} - Tiết {section.periods}
+            </p>
+            {section.startPeriod && section.periodCount && (
+              <p className="text-xs text-gray-500 mt-1">
+                {PERIOD_TIMES[section.startPeriod]?.start} -{" "}
+                {PERIOD_TIMES[section.startPeriod + section.periodCount - 1]?.end}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {section.room && (
+          <div className="flex items-start gap-3">
+            <MapPin className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-gray-500">Phòng học</p>
+              <p className="font-medium">{section.room}</p>
+            </div>
+          </div>
+        )}
+
+        {(section.startDate || section.endDate) && (
+          <div className="flex items-start gap-3">
+            <Calendar className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-gray-500">Thời gian học</p>
+              <p className="font-medium">
+                {section.startDate && format(section.startDate, "dd/MM/yyyy", { locale: vi })}
+                {section.startDate && section.endDate && " - "}
+                {section.endDate && format(section.endDate, "dd/MM/yyyy", { locale: vi })}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 pt-2 border-t">
+        <Badge variant={section.isPractical ? "warning" : "info"}>
+          {section.isPractical ? "Thực hành" : "Lý thuyết"}
+        </Badge>
         <Badge variant="secondary">{section.credits} tín chỉ</Badge>
         {section.maxStudents && <Badge variant="outline">Sĩ số: {section.maxStudents}</Badge>}
       </div>

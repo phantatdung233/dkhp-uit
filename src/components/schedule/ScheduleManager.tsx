@@ -81,7 +81,7 @@ export function ScheduleManager() {
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-9 gap-2 min-w-[200px] justify-between">
+          <Button variant="outline" className="h-9 gap-2 min-w-[185px] justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
               <span className="font-medium truncate max-w-[120px]">{currentSchedule?.name || "Chọn TKB"}</span>
@@ -95,7 +95,7 @@ export function ScheduleManager() {
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="start" className="w-[200px] p-0">
+        <DropdownMenuContent align="start" className="w-[185px] p-0">
           {/* Header */}
           <div className="px-3 py-2 border-b bg-muted/30">
             <div className="flex items-center justify-between">

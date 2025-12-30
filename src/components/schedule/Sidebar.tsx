@@ -135,7 +135,8 @@ function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
     } else {
       setClickSelectedCourse(course);
       setClickSelectedLecturer(null);
-      // Không tự động đóng sidebar nữa - người dùng tự đóng thủ công
+      // Tự động đóng sidebar trên mobile sau khi chọn môn
+      if (onSelect) onSelect();
     }
   };
 

@@ -4,14 +4,14 @@
  * FileUpload Component
  * ====================
  * Component upload file Excel hoặc nhập link Google Sheet
+ * Hỗ trợ chọn file mẫu từ server
  */
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X } from "lucide-react";
+import React, { useState, useCallback, useRef } from "react";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, FileCheck, Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -28,12 +28,23 @@ import { useScheduleStore } from "@/store/schedule-store";
 import type { ParseResult } from "@/types";
 import { cn } from "@/lib/utils";
 
+// Danh sách file mẫu có sẵn
+const SAMPLE_FILES = [
+  {
+    id: "sample-1",
+    name: "Lịch 2025-2026",
+    description: "File lịch TKB của năm 2025-2026",
+    path: "/samples/sample-2025-2026.xlsm",
+  },
+];
+
 export function FileUpload() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [showSamples, setShowSamples] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { importData, allSections } = useScheduleStore();
@@ -43,6 +54,7 @@ export function FileUpload() {
     setIsOpen(false);
     setResult(null);
     setWarnings([]);
+    setShowSamples(false);
   };
 
   // Handle file selection
@@ -119,6 +131,31 @@ export function FileUpload() {
     }
   }, []);
 
+  // Load sample file
+  const handleLoadSample = async (samplePath: string) => {
+    setIsLoading(true);
+    setResult(null);
+    setWarnings([]);
+
+    try {
+      const response = await fetch(samplePath);
+      if (!response.ok) {
+        throw new Error("Không thể tải file mẫu");
+      }
+
+      const blob = await response.blob();
+      const file = new File([blob], samplePath.split("/").pop() || "sample.xlsx", {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      await processFile(file);
+      setShowSamples(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Lỗi khi tải file mẫu");
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -136,12 +173,15 @@ export function FileUpload() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
-            {result ? "Kết quả nhập TKB" : "Nhập dữ liệu TKB"}
+            {result ? "Kết quả nhập TKB" : showSamples ? "Chọn file mẫu" : "Nhập dữ liệu TKB"}
           </DialogTitle>
+          <DialogDescription>
+            {showSamples ? "Chọn một file lịch mẫu để sử dụng" : "Upload file Excel hoặc chọn file mẫu có sẵn"}
+          </DialogDescription>
         </DialogHeader>
 
-        {!result ? (
-          <div className="py-4">
+        {!result && !showSamples ? (
+          <div className="py-4 space-y-4">
             <div
               className={cn(
                 "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
@@ -175,7 +215,6 @@ export function FileUpload() {
               </Button>
               <p className="text-xs text-gray-400 mt-2">Hỗ trợ: .xlsx, .xlsm, .xls, .csv</p>
               <p className="text-xs text-blue-600 mt-3">
-                {" "}
                 <a
                   href="https://daa.uit.edu.vn/thongbaochinhquy"
                   target="_blank"
@@ -186,8 +225,57 @@ export function FileUpload() {
                 </a>
               </p>
             </div>
+
+            {/* Sample files section */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">Hoặc</span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => setShowSamples(true)}
+              disabled={isLoading}
+            >
+              <FileCheck className="h-4 w-4" />
+              Chọn file mẫu có sẵn
+            </Button>
           </div>
-        ) : (
+        ) : !result && showSamples ? (
+          <div className="py-4">
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-2 pr-4">
+                {SAMPLE_FILES.map((sample) => (
+                  <button
+                    key={sample.id}
+                    onClick={() => handleLoadSample(sample.path)}
+                    disabled={isLoading}
+                    className={cn(
+                      "w-full text-left p-4 rounded-lg border-2 transition-all",
+                      "hover:border-primary hover:bg-primary/5",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                      "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <FileSpreadsheet className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-sm">{sample.name}</h4>
+                        <p className="text-xs text-gray-500 mt-1">{sample.description}</p>
+                      </div>
+                      <Download className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        ) : result ? (
           <div className="py-4 space-y-3">
             {/* Success/Error Summary */}
             <div
@@ -258,7 +346,7 @@ export function FileUpload() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
 
         {/* Actions */}
         <div className="flex justify-between items-center pt-4 border-t">
@@ -268,14 +356,20 @@ export function FileUpload() {
               <Button variant="outline" onClick={() => setResult(null)}>
                 Quay lại
               </Button>
+            ) : showSamples ? (
+              <Button variant="outline" onClick={() => setShowSamples(false)}>
+                Quay lại
+              </Button>
             ) : (
               <Button variant="outline" onClick={handleClose}>
                 Hủy
               </Button>
             )}
-            <Button onClick={handleImport} disabled={!result || !result.success || result.sections.length === 0}>
-              Nhập
-            </Button>
+            {result && (
+              <Button onClick={handleImport} disabled={!result.success || result.sections.length === 0}>
+                Nhập
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
