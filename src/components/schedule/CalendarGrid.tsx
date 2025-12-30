@@ -1039,69 +1039,100 @@ function FlexibleClassesList({ classes, onRemove, onClassClick }: FlexibleClasse
         const colorClass = COURSE_COLORS[colorIdx % COURSE_COLORS.length];
         const flexibleType = getFlexibleType(section);
 
-        const handleFlexibleCardClick = () => {
-          if (onClassClick) {
+        const handleFlexibleCardClick = (e: React.MouseEvent) => {
+          // Chỉ xử lý click trên mobile, bỏ qua nếu click vào nút xóa
+          if (onClassClick && !(e.target as HTMLElement).closest('button')) {
             onClassClick(scheduledClass);
           }
         };
 
-        return (
-          <div key={scheduledClass.id} className="group relative">
-            <div
-              onClick={handleFlexibleCardClick}
-              className={cn(
-                "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative cursor-pointer",
-                "shadow-sm hover:shadow-md transition-shadow md:cursor-default",
-                colorClass
-              )}
+        // Nội dung card dùng chung
+        const cardInnerContent = (
+          <>
+            {/* Remove button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(scheduledClass.id);
+              }}
+              className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
             >
-              {/* Remove button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(scheduledClass.id);
-                }}
-                className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
-              >
-                <X className="h-3 w-3 text-gray-600" />
-              </button>
+              <X className="h-3 w-3 text-gray-600" />
+            </button>
 
-              {/* Content */}
-              <div className="h-full flex flex-col">
-                <p className="font-medium text-[11px] mt-0.5">{section.classCode}</p>
-                <h4 className="font-bold leading-tight text-[13px] line-clamp-1">{section.courseName}</h4>
+            {/* Content */}
+            <div className="h-full flex flex-col">
+              <p className="font-medium text-[11px] mt-0.5">{section.classCode}</p>
+              <h4 className="font-bold leading-tight text-[13px] line-clamp-1">{section.courseName}</h4>
 
-                <div className="mt-1 space-y-0.5">
-                  <div className="flex items-center gap-1 text-[12px] opacity-70">
-                    <User className="h-3 w-3 shrink-0" />
-                    <span className="font-bold truncate">{section.lecturer}</span>
-                  </div>
-                  {section.room && (
-                    <div className="flex items-center gap-1 text-[12px] opacity-70">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      <span className="font-bold truncate">{section.room}</span>
-                    </div>
-                  )}
-                  {(section.startDate || section.endDate) && (
-                    <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      <span className="font-bold truncate">
-                        {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
-                        {section.endDate ? format(section.endDate, "dd/MM") : "?"}
-                      </span>
-                    </div>
-                  )}
+              <div className="mt-1 space-y-0.5">
+                <div className="flex items-center gap-1 text-[12px] opacity-70">
+                  <User className="h-3 w-3 shrink-0" />
+                  <span className="font-bold truncate">{section.lecturer}</span>
                 </div>
+                {section.room && (
+                  <div className="flex items-center gap-1 text-[12px] opacity-70">
+                    <MapPin className="h-3 w-3 shrink-0" />
+                    <span className="font-bold truncate">{section.room}</span>
+                  </div>
+                )}
+                {(section.startDate || section.endDate) && (
+                  <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    <span className="font-bold truncate">
+                      {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
+                      {section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                    </span>
+                  </div>
+                )}
+              </div>
 
-                <Badge
-                  variant={section.isPractical ? "warning" : "info"}
-                  className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
-                >
-                  {section.isPractical ? "TH" : "LT"}
-                </Badge>
+              <Badge
+                variant={section.isPractical ? "warning" : "info"}
+                className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
+              >
+                {section.isPractical ? "TH" : "LT"}
+              </Badge>
+            </div>
+          </>
+        );
+
+        return (
+          <>
+            {/* Desktop: với tooltip, KHÔNG có click */}
+            <div key={`${scheduledClass.id}-desktop`} className="hidden md:block group relative">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    className={cn(
+                      "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative",
+                      "shadow-sm hover:shadow-md transition-shadow cursor-default",
+                      colorClass
+                    )}
+                  >
+                    {cardInnerContent}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <FlexibleClassTooltip section={section} flexibleType={flexibleType} />
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            
+            {/* Mobile: CÓ click để mở dialog */}
+            <div key={`${scheduledClass.id}-mobile`} className="md:hidden group relative">
+              <div
+                onClick={handleFlexibleCardClick}
+                className={cn(
+                  "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative cursor-pointer",
+                  "shadow-sm hover:shadow-md transition-shadow",
+                  colorClass
+                )}
+              >
+                {cardInnerContent}
               </div>
             </div>
-          </div>
+          </>
         );
       })}
     </div>
