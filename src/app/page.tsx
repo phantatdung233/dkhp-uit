@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Trash2, AlertTriangle, CheckCircle2, Camera, Copy, Info, Download, FileText } from "lucide-react";
+import {
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  Camera,
+  Copy,
+  Info,
+  Download,
+  FileText,
+  ExternalLink,
+} from "lucide-react";
 
 import { SchedulePlanner, FileUpload, ScheduleManager } from "@/components/schedule";
 import { Button } from "@/components/ui/button";
@@ -316,6 +326,26 @@ export default function Home() {
 
               {/* Action buttons */}
               <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                      onClick={() =>
+                        window.open(
+                          "https://chromewebstore.google.com/detail/tool-%C4%91%C4%83ng-k%C3%BD-h%E1%BB%8Dc-ph%E1%BA%A7n-uit/phngppecjpeehffhgjolkdglbjonpdgn",
+                          "_blank"
+                        )
+                      }
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      <span className="hidden sm:inline">Tool</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Tiện ích hỗ trợ ĐKHP trên Chrome</TooltipContent>
+                </Tooltip>
+
                 <FileUpload />
 
                 <DropdownMenu>
