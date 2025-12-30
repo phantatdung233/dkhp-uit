@@ -1041,7 +1041,7 @@ function FlexibleClassesList({ classes, onRemove, onClassClick }: FlexibleClasse
 
         const handleFlexibleCardClick = (e: React.MouseEvent) => {
           // Chỉ xử lý click trên mobile, bỏ qua nếu click vào nút xóa
-          if (onClassClick && !(e.target as HTMLElement).closest('button')) {
+          if (onClassClick && !(e.target as HTMLElement).closest("button")) {
             onClassClick(scheduledClass);
           }
         };
@@ -1118,7 +1118,7 @@ function FlexibleClassesList({ classes, onRemove, onClassClick }: FlexibleClasse
                 </TooltipContent>
               </Tooltip>
             </div>
-            
+
             {/* Mobile: CÓ click để mở dialog */}
             <div key={`${scheduledClass.id}-mobile`} className="md:hidden group relative">
               <div
