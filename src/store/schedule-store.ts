@@ -409,12 +409,9 @@ export const useScheduleStore = create<ScheduleState>()(
             createdAt: Date.now(),
           };
 
+          // Thêm TKB mới vào cuối danh sách, giữ nguyên TKB hiện tại
           set({
             schedules: [...state.schedules, newSchedule],
-            currentScheduleId: newId,
-            scheduledClasses: [],
-            warnings: [],
-            totalCredits: 0,
           });
         },
 

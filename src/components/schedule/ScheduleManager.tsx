@@ -8,18 +8,11 @@
  */
 
 import React, { useState } from "react";
-import { Plus, Trash2, Edit2, Check, X, Calendar, ChevronDown, MoreHorizontal } from "lucide-react";
+import { Plus, Trash2, Calendar, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -35,36 +28,14 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function ScheduleManager() {
-  const { schedules, currentScheduleId, addSchedule, removeSchedule, switchSchedule, renameSchedule } =
-    useScheduleStore();
+  const { schedules, currentScheduleId, addSchedule, removeSchedule, switchSchedule } = useScheduleStore();
 
   const MAX_SCHEDULES = 5;
   const [isOpen, setIsOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const currentSchedule = schedules.find((s) => s.id === currentScheduleId);
   const canAddMore = schedules.length < MAX_SCHEDULES;
-
-  const handleStartEdit = (id: string, name: string) => {
-    setEditingId(id);
-    setEditingName(name);
-  };
-
-  const handleSaveEdit = () => {
-    if (editingId && editingName.trim()) {
-      renameSchedule(editingId, editingName.trim());
-      toast.success("Đã đổi tên TKB");
-    }
-    setEditingId(null);
-    setEditingName("");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditingName("");
-  };
 
   const handleAddSchedule = () => {
     if (!canAddMore) {
@@ -76,6 +47,14 @@ export function ScheduleManager() {
   };
 
   const handleDelete = (id: string) => {
+    const scheduleToDelete = schedules.find((s) => s.id === id);
+
+    // Không cho xóa TKB 1 (default)
+    if (scheduleToDelete?.name === "TKB 1") {
+      toast.error("Không thể xóa TKB 1");
+      return;
+    }
+
     if (schedules.length <= 1) {
       toast.error("Phải có ít nhất 1 TKB");
       return;
@@ -140,8 +119,9 @@ export function ScheduleManager() {
             <div className="p-1">
               {schedules.map((schedule) => {
                 const isActive = schedule.id === currentScheduleId;
-                const isEditing = editingId === schedule.id;
                 const courseCount = getRegisteredCourseCount(schedule.scheduledClasses);
+                const isDefaultSchedule = schedule.name === "TKB 1";
+                const canDelete = !isDefaultSchedule && schedules.length > 1;
 
                 return (
                   <div
@@ -151,92 +131,56 @@ export function ScheduleManager() {
                       isActive ? "bg-primary/10" : "hover:bg-muted/50"
                     )}
                   >
-                    {isEditing ? (
-                      <div className="flex items-center gap-1.5 p-2">
-                        <Input
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          className="h-8 text-sm"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveEdit();
-                            if (e.key === "Escape") handleCancelEdit();
-                          }}
-                        />
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleSaveEdit}>
-                          <Check className="h-4 w-4 text-green-600" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleCancelEdit}>
-                          <X className="h-4 w-4 text-red-600" />
-                        </Button>
-                      </div>
-                    ) : (
+                    <div
+                      className="flex items-center gap-2 p-2 cursor-pointer"
+                      onClick={() => handleSwitch(schedule.id)}
+                    >
+                      {/* Active Indicator */}
                       <div
-                        className="flex items-center gap-2 p-2 cursor-pointer"
-                        onClick={() => handleSwitch(schedule.id)}
-                      >
-                        {/* Active Indicator */}
-                        <div
-                          className={cn(
-                            "w-1.5 h-8 rounded-full shrink-0 transition-colors",
-                            isActive ? "bg-primary" : "bg-transparent"
-                          )}
-                        />
+                        className={cn(
+                          "w-1.5 h-8 rounded-full shrink-0 transition-colors",
+                          isActive ? "bg-primary" : "bg-transparent"
+                        )}
+                      />
 
-                        {/* Schedule Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "font-medium text-sm truncate",
-                                isActive ? "text-primary" : "text-foreground"
-                              )}
-                            >
-                              {schedule.name}
-                            </span>
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] shrink-0">
-                              {schedule.totalCredits} TC
-                            </Badge>
-                          </div>
+                      {/* Schedule Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "font-medium text-sm truncate",
+                              isActive ? "text-primary" : "text-foreground"
+                            )}
+                          >
+                            {schedule.name}
+                          </span>
+                          <Badge variant="secondary" className="h-5 px-1.5 text-[10px] shrink-0">
+                            {schedule.totalCredits} TC
+                          </Badge>
                         </div>
-
-                        {/* Actions */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartEdit(schedule.id, schedule.name);
-                              }}
-                            >
-                              <Edit2 className="h-4 w-4 mr-2" />
-                              Đổi tên
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
-                              disabled={schedules.length <= 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteConfirmId(schedule.id);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Xóa
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
-                    )}
+
+                      {/* Delete Button */}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={cn(
+                          "h-7 w-7 transition-opacity",
+                          canDelete
+                            ? "opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            : "opacity-30 cursor-not-allowed"
+                        )}
+                        disabled={!canDelete}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (canDelete) {
+                            setDeleteConfirmId(schedule.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 );
               })}

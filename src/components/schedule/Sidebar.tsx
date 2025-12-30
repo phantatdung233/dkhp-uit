@@ -8,7 +8,7 @@
  */
 
 import React from "react";
-import { Search, X, BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, X, BookOpen } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,92 +21,76 @@ import { COURSE_COLORS } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface SidebarProps {
-  isCollapsed?: boolean;
-  onToggleCollapse?: () => void;
+  onClose?: () => void;
 }
 
-export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ onClose }: SidebarProps) {
   const { filterOptions, setFilterOptions } = useScheduleStore();
   const filteredCourses = useFilteredCourses();
 
   return (
-    <aside 
-      className={cn(
-        "border-r bg-white flex flex-col h-full shadow-xl lg:shadow-none transition-all duration-300",
-        isCollapsed ? "w-16" : "w-80 max-w-[85vw]"
-      )}
-    >
+    <aside className="w-80 max-w-[85vw] border-r bg-white flex flex-col h-full shadow-xl lg:shadow-none">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b bg-white flex justify-between items-center">
-        {!isCollapsed && (
-          <div>
-            <h2 className="text-base sm:text-lg font-semibold text-[#2f6bff] flex items-center gap-2">
-              Danh sách môn học
-            </h2>
-          </div>
+        <div>
+          <h2 className="text-base sm:text-lg font-semibold text-[#2f6bff] flex items-center gap-2">
+            Danh sách môn học
+          </h2>
+        </div>
+        {onClose && (
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
         )}
       </div>
 
-      {!isCollapsed ? (
-        <>
-          {/* Filters */}
-          <div className="p-3 sm:p-4 border-b bg-white">
-            {/* Search input */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Tìm môn, giảng viên, mã lớp..."
-                value={filterOptions.searchQuery}
-                onChange={(e) => setFilterOptions({ searchQuery: e.target.value })}
-                className="pl-9 text-sm"
-              />
-              {filterOptions.searchQuery && (
-                <button
-                  onClick={() => setFilterOptions({ searchQuery: "" })}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Course list */}
-          <ScrollArea className="flex-1 p-3 sm:p-4">
-            <div className="space-y-2">
-              {filteredCourses.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                  <p>Không tìm thấy môn học nào</p>
-                </div>
-              ) : (
-                filteredCourses.map((course, index) => (
-                  <CourseItem
-                    key={course.id}
-                    course={course}
-                    colorIndex={index % COURSE_COLORS.length}
-                  />
-                ))
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Footer */}
-          <div className="p-3 sm:p-4 border-t bg-white text-center">
-            <p className="text-xs text-gray-500">Hiển thị {filteredCourses.length} môn học</p>
-          </div>
-        </>
-      ) : (
-        /* Collapsed state */
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-2">
-          <BookOpen className="h-6 w-6 text-gray-400" />
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-px w-8 bg-gray-300" />
-            <p className="text-xs font-medium text-gray-500">{filteredCourses.length}</p>
-            <p className="text-[10px] text-gray-400 [writing-mode:vertical-rl] rotate-180">môn</p>
-          </div>
+      {/* Filters */}
+      <div className="p-3 sm:p-4 border-b bg-white">
+        {/* Search input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Tìm môn, giảng viên, mã lớp..."
+            value={filterOptions.searchQuery}
+            onChange={(e) => setFilterOptions({ searchQuery: e.target.value })}
+            className="pl-9 text-sm"
+          />
+          {filterOptions.searchQuery && (
+            <button
+              onClick={() => setFilterOptions({ searchQuery: "" })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Course list */}
+      <ScrollArea className="flex-1 p-3 sm:p-4">
+        <div className="space-y-2">
+          {filteredCourses.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <BookOpen className="h-12 w-12 mx-auto mb-2 opacity-30" />
+              <p>Không tìm thấy môn học nào</p>
+            </div>
+          ) : (
+            filteredCourses.map((course, index) => (
+              <CourseItem
+                key={course.id}
+                course={course}
+                colorIndex={index % COURSE_COLORS.length}
+                onSelect={onClose}
+              />
+            ))
+          )}
+        </div>
+      </ScrollArea>
+
+      {/* Footer */}
+      <div className="p-3 sm:p-4 border-t bg-white text-center">
+        <p className="text-xs text-gray-500">Hiển thị {filteredCourses.length} môn học</p>
+      </div>
     </aside>
   );
 }
@@ -116,9 +100,10 @@ export function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps)
 interface CourseItemProps {
   course: Course;
   colorIndex: number;
+  onSelect?: () => void;
 }
 
-function CourseItem({ course, colorIndex }: CourseItemProps) {
+function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
   const {
     scheduledClasses,
     clickSelectedCourse,
@@ -150,6 +135,7 @@ function CourseItem({ course, colorIndex }: CourseItemProps) {
     } else {
       setClickSelectedCourse(course);
       setClickSelectedLecturer(null);
+      // Không tự động đóng sidebar nữa - người dùng tự đóng thủ công
     }
   };
 

@@ -36,27 +36,125 @@ export default function Home() {
     clearData,
     filterOptions,
     setFilterOptions,
+    addClassToSchedule,
   } = useScheduleStore();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [forceFullCalendar, setForceFullCalendar] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importClassCodes, setImportClassCodes] = useState("");
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   const hasData = allSections.length > 0;
   const hasSchedule = scheduledClasses.length > 0;
 
-  const handleCopyCoursesCodes = () => {
+  const handleExportCoursesCodes = () => {
     const classCodes = scheduledClasses
       .map((sc) => sc.classSection.classCode)
       .sort()
       .join(",");
 
     if (!classCodes) {
-      toast.error("Chưa có lớp nào để sao chép");
+      toast.error("Chưa có lớp nào để xuất");
       return;
     }
 
     navigator.clipboard.writeText(classCodes);
     toast.success(`Đã sao chép ${scheduledClasses.length} mã lớp`);
+  };
+
+  const handleImportCoursesCodes = () => {
+    setImportClassCodes("");
+    setImportErrors([]);
+    setShowImportDialog(true);
+  };
+
+  const handleConfirmImport = () => {
+    if (!importClassCodes.trim()) {
+      toast.error("Vui lòng nhập mã lớp");
+      return;
+    }
+
+    const codes = importClassCodes
+      .split(",")
+      .map((code) => code.trim())
+      .filter((code) => code);
+
+    if (codes.length === 0) {
+      toast.error("Không có mã lớp hợp lệ");
+      return;
+    }
+
+    const errors: string[] = [];
+    const addedClasses: string[] = [];
+    const skippedClasses: string[] = [];
+
+    // Xử lý từng mã lớp
+    codes.forEach((code) => {
+      // Tìm class section từ mã lớp
+      const section = allSections.find((s) => s.classCode === code);
+
+      if (!section) {
+        errors.push(`Không tìm thấy lớp "${code}"`);
+        return;
+      }
+
+      // Kiểm tra đã đăng ký chưa
+      const alreadyRegistered = scheduledClasses.some((sc) => sc.classSection.classCode === code);
+      if (alreadyRegistered) {
+        skippedClasses.push(code);
+        return;
+      }
+
+      // Nếu là lớp lý thuyết, kiểm tra xem có lớp thực hành không
+      if (!section.isPractical) {
+        const practicalSections = allSections.filter(
+          (s) => s.courseCode === section.courseCode && s.isPractical && s.classCode.startsWith(section.classCode + ".")
+        );
+
+        if (practicalSections.length > 0) {
+          // Kiểm tra xem người dùng có nhập lớp TH nào không
+          const hasPracticalInInput = practicalSections.some((ps) => codes.includes(ps.classCode));
+
+          if (!hasPracticalInInput) {
+            const practicalCodes = practicalSections.map((s) => s.classCode).join(", ");
+            errors.push(`Lớp "${code}": Cần nhập thêm lớp thực hành (VD: ${practicalSections[0].classCode})`);
+            return;
+          }
+        }
+      }
+
+      // Thêm vào lịch với kiểm tra conflict
+      const result = addClassToSchedule(section, true); // skipPracticalPrompt = true
+
+      if (result.success) {
+        addedClasses.push(code);
+      } else {
+        if (result.conflicts && result.conflicts.length > 0) {
+          errors.push(`Lớp "${code}": Trùng lịch với ${result.conflicts[0].conflictingClasses[0].classCode}`);
+        } else if (result.error) {
+          errors.push(`Lớp "${code}": ${result.error}`);
+        }
+      }
+    });
+
+    // Hiển thị kết quả
+    if (addedClasses.length > 0) {
+      toast.success(`Đã thêm ${addedClasses.length} lớp vào lịch`);
+    }
+
+    if (skippedClasses.length > 0) {
+      toast.info(`Bỏ qua ${skippedClasses.length} lớp đã đăng ký`);
+    }
+
+    if (errors.length > 0) {
+      setImportErrors(errors);
+      return; // Giữ dialog mở để hiển thị lỗi
+    }
+
+    setShowImportDialog(false);
+    setImportClassCodes("");
+    setImportErrors([]);
   };
 
   const handleClearSchedule = () => {
@@ -220,50 +318,65 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <FileUpload />
 
-                {hasSchedule && (
-                  <>
-                    <DropdownMenu>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="icon">
-                              <Camera className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                        </TooltipTrigger>
-                        <TooltipContent>{"Chụp ảnh TKB"}</TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleExportImage("download")}>
-                          <Download className="mr-2 h-4 w-4" />
-                          <span>Tải xuống</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleExportImage("copy")}>
-                          <Copy className="mr-2 h-4 w-4" />
-                          <span>Sao chép</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" disabled={!hasSchedule}>
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>{hasSchedule ? "Chụp ảnh TKB" : "Chưa có lịch để chụp"}</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExportImage("download")} disabled={!hasSchedule}>
+                      <Download className="mr-2 h-4 w-4" />
+                      <span>Tải xuống</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExportImage("copy")} disabled={!hasSchedule}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      <span>Sao chép</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={handleCopyCoursesCodes}>
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" disabled={!hasData}>
                           <FileText className="h-4 w-4" />
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Sao chép mã lớp</TooltipContent>
-                    </Tooltip>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>{hasData ? "Xuất/Nhập mã lớp" : "Chưa có dữ liệu"}</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleExportCoursesCodes} disabled={!hasSchedule}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      <span>Xuất mã lớp</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleImportCoursesCodes}>
+                      <Download className="mr-2 h-4 w-4" />
+                      <span>Nhập mã lớp</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => setShowClearConfirm(true)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Xóa lịch đã xếp</TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowClearConfirm(true)}
+                      disabled={!hasSchedule}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{hasSchedule ? "Xóa lịch đã xếp" : "Chưa có lịch để xóa"}</TooltipContent>
+                </Tooltip>
               </div>
             </div>
           </div>
@@ -293,6 +406,61 @@ export default function Home() {
               <Button variant="destructive" onClick={handleClearSchedule}>
                 Xóa lịch
               </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Import class codes dialog */}
+        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-primary" />
+                Nhập mã lớp
+              </DialogTitle>
+              <DialogDescription>Nhập các mã lớp cách nhau bằng dấu phẩy</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <textarea
+                className="w-full min-h-[100px] p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm font-mono"
+                placeholder="IT001.O11.1,IT002.O12.2,IT003.O13.1,..."
+                value={importClassCodes}
+                onChange={(e) => {
+                  setImportClassCodes(e.target.value);
+                  setImportErrors([]);
+                }}
+              />
+
+              {importErrors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-[200px] overflow-y-auto">
+                  <h4 className="text-sm font-semibold text-red-800 mb-2 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    Có {importErrors.length} lỗi:
+                  </h4>
+                  <ul className="space-y-1">
+                    {importErrors.map((error, index) => (
+                      <li key={index} className="text-xs text-red-700">
+                        • {error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowImportDialog(false);
+                  setImportClassCodes("");
+                  setImportErrors([]);
+                }}
+              >
+                Hủy
+              </Button>
+              <Button onClick={handleConfirmImport}>Nhập lịch</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
