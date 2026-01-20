@@ -160,6 +160,7 @@ export function FileUpload() {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
+          data-file-upload-trigger
           variant="outline"
           size={allSections.length > 0 ? "icon" : "default"}
           className={allSections.length > 0 ? "" : "gap-2"}

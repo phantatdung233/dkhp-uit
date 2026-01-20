@@ -342,15 +342,7 @@ export function getClassTimeRange(section: ClassSection): { start: number; end: 
 }
 
 export function getTotalCredits(scheduledClasses: ScheduledClass[]): number {
-  const courseCredits = new Map<string, number>();
-  for (const sc of scheduledClasses) {
-    const key = sc.classSection.courseCode;
-    const credits = sc.classSection.credits;
-    if (!courseCredits.has(key) || credits > courseCredits.get(key)!) courseCredits.set(key, credits);
-  }
-  let sum = 0;
-  for (const v of courseCredits.values()) sum += v;
-  return sum;
+  return scheduledClasses.reduce((sum, sc) => sum + (sc.classSection.credits || 0), 0);
 }
 
 export function getRegisteredCourses(scheduledClasses: ScheduledClass[]): string[] {

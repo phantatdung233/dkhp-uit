@@ -12,8 +12,13 @@ import {
   checkMissingPairedClass,
   getHighlightedSlots,
   getTotalCredits,
-  getPeriodArray,
 } from "@/lib/schedule-utils";
+import {
+  filterValidSections,
+  checkDuplicateTypeRegistration,
+  validatePracticalWithPendingTheory,
+  findPairedClass,
+} from "./schedule-store-helpers";
 
 interface ScheduleState {
   // ============ Data State ============
@@ -104,7 +109,7 @@ export const useScheduleStore = create<ScheduleState>()(
         schedules: [
           {
             id: "default",
-            name: "TKB 1",
+            name: "Lịch 1",
             scheduledClasses: [],
             totalCredits: 0,
             warnings: [],
@@ -123,7 +128,6 @@ export const useScheduleStore = create<ScheduleState>()(
           lecturerFilter: "",
           showUnregisteredOnly: false,
           classType: "all",
-          specialGroup: "none",
         },
 
         clickSelectedCourse: null,
@@ -164,35 +168,24 @@ export const useScheduleStore = create<ScheduleState>()(
         addClassToSchedule: (section, skipPracticalPrompt = false) => {
           const state = get();
 
-          // Lấy các lớp đã đăng ký của môn này
-          const registeredSections = state.scheduledClasses
-            .filter((sc) => sc.classSection.courseCode === section.courseCode)
-            .map((sc) => sc.classSection);
-
           // 1. Kiểm tra trùng loại (đã có LT thì không cho thêm LT khác, tương tự TH)
-          const sameTypeClass = registeredSections.find((s) => s.isPractical === section.isPractical);
-          if (sameTypeClass) {
-            const typeStr = section.isPractical ? "THỰC HÀNH" : "LÝ THUYẾT";
+          const duplicateCheck = checkDuplicateTypeRegistration(section, state.scheduledClasses);
+          if (duplicateCheck.isDuplicate) {
             return {
               success: false,
               conflicts: [],
-              error: `Bạn đã đăng ký lớp ${typeStr} cho môn "${section.courseName}" rồi!`,
+              error: `Bạn đã đăng ký lớp ${duplicateCheck.typeStr} cho môn "${section.courseName}" rồi!`,
             };
           }
 
           // 2. Kiểm tra tính hợp lệ giữa LT và TH (theo quy tắc mã lớp: TH phải bắt đầu bằng mã LT + ".")
-          if (section.isPractical) {
-            // Đang thêm lớp TH, kiểm tra xem có khớp với pending LT không
-            const pendingTheory = state.pendingTheorySection;
-            if (pendingTheory) {
-              if (!section.classCode.startsWith(pendingTheory.classCode + ".")) {
-                return {
-                  success: false,
-                  conflicts: [],
-                  error: `Lớp thực hành "${section.classCode}" không khớp với lớp lý thuyết "${pendingTheory.classCode}" đã chọn!`,
-                };
-              }
-            }
+          const practicalValidation = validatePracticalWithPendingTheory(section, state.pendingTheorySection);
+          if (!practicalValidation.isValid) {
+            return {
+              success: false,
+              conflicts: [],
+              error: practicalValidation.error,
+            };
           }
 
           // 3. Kiểm tra conflict thời gian
@@ -241,9 +234,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
           // 5. Kiểm tra giới hạn tín chỉ (tối đa 30)
           const currentCredits = state.totalCredits;
-          const courseAlreadyRegistered = registeredSections.length > 0 || state.pendingTheorySection !== null;
-          // Nếu môn này chưa đăng ký bất kỳ lớp nào (LT hoặc TH), thì cộng thêm tín chỉ
-          const addedCredits = courseAlreadyRegistered ? 0 : section.credits;
+          const addedCredits = section.credits;
 
           if (currentCredits + addedCredits > 30) {
             return {
@@ -307,32 +298,10 @@ export const useScheduleStore = create<ScheduleState>()(
           const removedSection = removedClass.classSection;
 
           // Tìm và xóa cả lớp đi kèm (LT xóa TH, TH xóa LT)
-          let classIdsToRemove = [classId];
-
-          if (removedSection.isPractical) {
-            // Đang xóa TH, tìm LT đi kèm
-            // Mã TH có dạng "LT_CODE.1", "LT_CODE.2", etc.
-            const theoryClassCode = removedSection.classCode.split(".").slice(0, -1).join(".");
-            const pairedTheory = state.scheduledClasses.find(
-              (sc) =>
-                sc.classSection.courseCode === removedSection.courseCode &&
-                !sc.classSection.isPractical &&
-                sc.classSection.classCode === theoryClassCode
-            );
-            if (pairedTheory) {
-              classIdsToRemove.push(pairedTheory.id);
-            }
-          } else {
-            // Đang xóa LT, tìm TH đi kèm
-            const pairedPractical = state.scheduledClasses.find(
-              (sc) =>
-                sc.classSection.courseCode === removedSection.courseCode &&
-                sc.classSection.isPractical &&
-                sc.classSection.classCode.startsWith(removedSection.classCode + ".")
-            );
-            if (pairedPractical) {
-              classIdsToRemove.push(pairedPractical.id);
-            }
+          const classIdsToRemove = [classId];
+          const pairedClass = findPairedClass(removedSection, state.scheduledClasses);
+          if (pairedClass) {
+            classIdsToRemove.push(pairedClass.id);
           }
 
           const newScheduledClasses = state.scheduledClasses.filter((sc) => !classIdsToRemove.includes(sc.id));
@@ -402,7 +371,7 @@ export const useScheduleStore = create<ScheduleState>()(
           const newId = Date.now().toString();
           const newSchedule: Schedule = {
             id: newId,
-            name: name || `TKB ${state.schedules.length + 1}`,
+            name: name || `Lịch ${state.schedules.length + 1}`,
             scheduledClasses: [],
             totalCredits: 0,
             warnings: [],
@@ -464,37 +433,6 @@ export const useScheduleStore = create<ScheduleState>()(
         updateHighlightedSlots: () => {
           const state = get();
 
-          // Helper function để lọc các section hợp lệ (không trùng loại, khớp mã LT-TH)
-          const filterValidSections = (sections: ClassSection[]) => {
-            return sections.filter((section) => {
-              const registeredSections = state.scheduledClasses
-                .filter((sc) => sc.classSection.courseCode === section.courseCode)
-                .map((sc) => sc.classSection);
-
-              // 1. Kiểm tra trùng loại
-              const sameTypeClass = registeredSections.find((s) => s.isPractical === section.isPractical);
-              if (sameTypeClass) return false;
-
-              // 2. Kiểm tra tính hợp lệ giữa LT và TH
-              if (section.isPractical) {
-                // Nếu có pending LT, chỉ hiện TH khớp với pending LT
-                if (state.pendingTheorySection) {
-                  return section.classCode.startsWith(state.pendingTheorySection.classCode + ".");
-                }
-                const theoryClass = registeredSections.find((s) => !s.isPractical);
-                if (theoryClass && !section.classCode.startsWith(theoryClass.classCode + ".")) {
-                  return false;
-                }
-              } else {
-                const practicalClass = registeredSections.find((s) => s.isPractical);
-                if (practicalClass && !practicalClass.classCode.startsWith(section.classCode + ".")) {
-                  return false;
-                }
-              }
-              return true;
-            });
-          };
-
           // Nếu có pending theory section, chỉ hiện các lớp TH tương ứng
           if (state.pendingTheorySection) {
             const practicalSections = state.allSections.filter(
@@ -504,26 +442,7 @@ export const useScheduleStore = create<ScheduleState>()(
                 s.classCode.startsWith(state.pendingTheorySection!.classCode + ".")
             );
 
-            // Lọc theo nhóm đặc thù
-            let filteredPracticals = practicalSections;
-            const specialGroup = state.filterOptions.specialGroup;
-            if (specialGroup === "none") {
-              filteredPracticals = practicalSections.filter(
-                (s) => !s.classCode.includes(".ANTT") && !s.classCode.includes(".TTNT")
-              );
-            } else {
-              const groupTag = `.${specialGroup}`;
-              const groupSections = practicalSections.filter((s) => s.classCode.includes(groupTag));
-              if (groupSections.length > 0) {
-                filteredPracticals = groupSections;
-              } else {
-                filteredPracticals = practicalSections.filter(
-                  (s) => !s.classCode.includes(".ANTT") && !s.classCode.includes(".TTNT")
-                );
-              }
-            }
-
-            const highlighted = getHighlightedSlots(filteredPracticals, state.scheduledClasses, state.allSections);
+            const highlighted = getHighlightedSlots(practicalSections, state.scheduledClasses, state.allSections);
             set({ highlightedSlots: highlighted });
             return;
           }
@@ -545,30 +464,12 @@ export const useScheduleStore = create<ScheduleState>()(
               filteredSections = filteredSections.filter((s) => !s.isPractical);
             }
 
-            // Lọc theo nhóm đặc thù và ưu tiên
-            const specialGroup = state.filterOptions.specialGroup;
-            if (specialGroup === "none") {
-              // Mặc định: Chỉ hiện lớp thường (không có .ANTT hoặc .TTNT)
-              filteredSections = filteredSections.filter(
-                (s) => !s.classCode.includes(".ANTT") && !s.classCode.includes(".TTNT")
-              );
-            } else {
-              const groupTag = `.${specialGroup}`;
-              const groupSections = filteredSections.filter((s) => s.classCode.includes(groupTag));
-
-              if (groupSections.length > 0) {
-                // Nếu có lớp thuộc nhóm đặc thù, CHỈ hiển thị các lớp đó
-                filteredSections = groupSections;
-              } else {
-                // Nếu không có bất kỳ lớp nào thuộc nhóm đặc thù, hiển thị lớp thường như bình thường
-                filteredSections = filteredSections.filter(
-                  (s) => !s.classCode.includes(".ANTT") && !s.classCode.includes(".TTNT")
-                );
-              }
-            }
-
-            // Lọc thêm theo quy tắc LT-TH
-            filteredSections = filterValidSections(filteredSections);
+            // Lọc theo quy tắc LT-TH
+            filteredSections = filterValidSections(
+              filteredSections,
+              state.scheduledClasses,
+              state.pendingTheorySection
+            );
 
             const highlighted = getHighlightedSlots(filteredSections, state.scheduledClasses, state.allSections);
             set({ highlightedSlots: highlighted });
@@ -593,7 +494,6 @@ export const useScheduleStore = create<ScheduleState>()(
               lecturerFilter: "",
               showUnregisteredOnly: false,
               classType: "all",
-              specialGroup: "none",
             },
           }),
 

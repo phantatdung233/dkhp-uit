@@ -4,3 +4,9 @@ export { CalendarGrid } from "./CalendarGrid";
 export { ClassSelectionModal } from "./ClassSelectionModal";
 export { FileUpload } from "./FileUpload";
 export { ScheduleManager } from "./ScheduleManager";
+
+// Extracted components from CalendarGrid
+export { ScheduledClassCard, ClassSectionTooltip, ClassDetailContent } from "./ScheduledClassCard";
+export { FlexibleClassesList, FlexibleClassTooltip, FlexibleSectionSelector } from "./FlexibleClasses";
+export { HighlightedBlocksOverlay } from "./HighlightedBlocks";
+export { ScheduledClassesOverlay } from "./ScheduledClassesOverlay";

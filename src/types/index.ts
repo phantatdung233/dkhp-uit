@@ -98,6 +98,12 @@ export interface Course {
   /** Có lớp lý thuyết không */
   hasTheoryClass: boolean;
 
+  /** Số tín chỉ lý thuyết */
+  theoryCredits?: number;
+
+  /** Số tín chỉ thực hành */
+  practicalCredits?: number;
+
   /** Danh sách các lớp học phần */
   sections: ClassSection[];
 
@@ -191,9 +197,6 @@ export interface FilterOptions {
 
   /** Lọc theo loại (lý thuyết/thực hành) */
   classType: "all" | "theory" | "practical";
-
-  /** Lọc theo nhóm đặc thù (ANTT, TTNT) */
-  specialGroup: "none" | "ANTT" | "TTNT";
 }
 
 /**

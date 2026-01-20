@@ -3,8 +3,8 @@
 /**
  * ScheduleManager Component
  * =========================
- * Component quản lý nhiều TKB thời khóa biểu
- * Hỗ trợ: Tạo mới (tối đa 5), xóa, đổi tên, chuyển đổi giữa các TKB
+ * Component quản lý nhiều Lịch thời khóa biểu
+ * Hỗ trợ: Tạo mới (tối đa 5), xóa, đổi tên, chuyển đổi giữa các Lịch
  */
 
 import React, { useState } from "react";
@@ -40,29 +40,29 @@ export function ScheduleManager() {
 
   const handleAddSchedule = () => {
     if (!canAddMore) {
-      toast.error(`Tối đa ${MAX_SCHEDULES} TKB`);
+      toast.error(`Tối đa ${MAX_SCHEDULES} Lịch`);
       return;
     }
     addSchedule();
-    toast.success("Đã tạo TKB mới");
+    toast.success("Đã tạo Lịch mới");
   };
 
   const handleDelete = (id: string) => {
     const scheduleToDelete = schedules.find((s) => s.id === id);
 
-    // Không cho xóa TKB 1 (default)
-    if (scheduleToDelete?.name === "TKB 1") {
-      toast.error("Không thể xóa TKB 1");
+    // Không cho xóa Lịch 1 (default)
+    if (scheduleToDelete?.name === "Lịch 1") {
+      toast.error("Không thể xóa Lịch 1");
       return;
     }
 
     if (schedules.length <= 1) {
-      toast.error("Phải có ít nhất 1 TKB");
+      toast.error("Phải có ít nhất 1 Lịch");
       return;
     }
     removeSchedule(id);
     setDeleteConfirmId(null);
-    toast.success("Đã xóa TKB");
+    toast.success("Đã xóa Lịch");
   };
 
   const handleSwitch = (id: string) => {
@@ -82,16 +82,21 @@ export function ScheduleManager() {
     <>
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-9 gap-2 min-w-[185px] justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <span className="font-medium truncate max-w-[120px]">{currentSchedule?.name || "Chọn TKB"}</span>
+          <Button
+            variant="outline"
+            className="h-8 sm:h-9 gap-1.5 sm:gap-2 min-w-0 sm:min-w-[185px] justify-between px-2 sm:px-4"
+          >
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary shrink-0" />
+              <span className="font-medium truncate text-xs sm:text-sm max-w-[70px] sm:max-w-[120px]">
+                {currentSchedule?.name || "Chọn Lịch"}
+              </span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+            <div className="flex items-center gap-1 shrink-0">
+              <Badge variant="secondary" className="h-5 px-1 sm:px-1.5 text-[9px] sm:text-[10px] whitespace-nowrap">
                 {currentSchedule?.totalCredits || 0} TC
               </Badge>
-              <ChevronDown className="h-4 w-4 opacity-50" />
+              <ChevronDown className="h-3.5 w-3.5 sm:h-4 sm:w-4 opacity-50" />
             </div>
           </Button>
         </DropdownMenuTrigger>
@@ -101,7 +106,7 @@ export function ScheduleManager() {
           <div className="px-3 py-2 border-b bg-muted/30">
             <div className="flex items-center justify-between">
               <h4 className="font-semibold text-sm">
-                TKB ({schedules.length}/{MAX_SCHEDULES})
+                Lịch ({schedules.length}/{MAX_SCHEDULES})
               </h4>
               <Button
                 size="sm"
@@ -121,7 +126,7 @@ export function ScheduleManager() {
               {schedules.map((schedule) => {
                 const isActive = schedule.id === currentScheduleId;
                 const courseCount = getRegisteredCourseCount(schedule.scheduledClasses);
-                const isDefaultSchedule = schedule.name === "TKB 1";
+                const isDefaultSchedule = schedule.name === "Lịch 1";
                 const canDelete = !isDefaultSchedule && schedules.length > 1;
 
                 return (
@@ -202,7 +207,7 @@ export function ScheduleManager() {
               Xác nhận xóa
             </DialogTitle>
             <DialogDescription>
-              Bạn có chắc muốn xóa TKB "<strong>{schedules.find((s) => s.id === deleteConfirmId)?.name}</strong>"? Hành
+              Bạn có chắc muốn xóa Lịch "<strong>{schedules.find((s) => s.id === deleteConfirmId)?.name}</strong>"? Hành
               động này không thể hoàn tác.
             </DialogDescription>
           </DialogHeader>
@@ -219,7 +224,7 @@ export function ScheduleManager() {
                 }
               }}
             >
-              Xóa TKB
+              Xóa Lịch
             </Button>
           </DialogFooter>
         </DialogContent>

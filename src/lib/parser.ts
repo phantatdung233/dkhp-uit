@@ -195,13 +195,13 @@ function parsePeriodInfo(periods: string): { startPeriod: number; periodCount: n
 function groupSectionsToCourses(sections: ClassSection[]): Course[] {
   const map = new Map<string, Course>();
   for (const s of sections) {
-    const key = s.courseName;
+    const key = s.courseCode;
     if (!map.has(key)) {
       map.set(key, {
         id: s.courseCode,
         courseCode: s.courseCode,
         courseName: s.courseName,
-        credits: s.credits,
+        credits: 0,
         hasPracticalClass: false,
         hasTheoryClass: false,
         sections: [],
@@ -210,11 +210,26 @@ function groupSectionsToCourses(sections: ClassSection[]): Course[] {
     }
     const c = map.get(key)!;
     c.sections.push(s);
+    // Ưu tiên lấy tên môn từ lớp lý thuyết (thường không có hậu tố TH)
+    if (!s.isPractical && c.courseName.includes("(TH)")) {
+      c.courseName = s.courseName;
+    }
     if (s.isPractical) c.hasPracticalClass = true;
     else c.hasTheoryClass = true;
     if (s.lecturer && !c.lecturers.includes(s.lecturer)) c.lecturers.push(s.lecturer);
-    if (s.credits > c.credits) c.credits = s.credits;
   }
+
+  // Cập nhật số tín chỉ tổng của môn = Max(LT) + Max(TH)
+  // Cách tính này bao quát được cả trường hợp split credits (2+1=3)
+  // và trường hợp chỉ có LT (3+0=3) hoặc chỉ có TH (0+3=3)
+  for (const c of map.values()) {
+    const theoryCredits = Math.max(0, ...c.sections.filter((s) => !s.isPractical).map((s) => s.credits || 0));
+    const practicalCredits = Math.max(0, ...c.sections.filter((s) => s.isPractical).map((s) => s.credits || 0));
+    c.theoryCredits = theoryCredits;
+    c.practicalCredits = practicalCredits;
+    c.credits = theoryCredits + practicalCredits;
+  }
+
   return Array.from(map.values());
 }
 

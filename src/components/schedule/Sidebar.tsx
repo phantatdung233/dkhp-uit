@@ -107,12 +107,10 @@ function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
   const {
     scheduledClasses,
     clickSelectedCourse,
-    clickSelectedType,
     setClickSelectedCourse,
     setClickSelectedLecturer,
     pendingTheorySection,
     clearClickSelection,
-    updateHighlightedSlots,
   } = useScheduleStore();
 
   // Check if course is registered
@@ -140,6 +138,14 @@ function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
     }
   };
 
+  // Check registered status for LT and TH separately
+  const hasRegisteredTheory = scheduledClasses.some(
+    (sc) => sc.classSection.courseCode === course.courseCode && !sc.classSection.isPractical
+  );
+  const hasRegisteredPractical = scheduledClasses.some(
+    (sc) => sc.classSection.courseCode === course.courseCode && sc.classSection.isPractical
+  );
+
   const colorClass = COURSE_COLORS[colorIndex];
 
   return (
@@ -157,33 +163,38 @@ function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="font-medium text-sm break-words">{course.courseName}</h3>
-              {pendingTheorySection && pendingTheorySection.courseCode === course.courseCode && (
-                <Badge variant="warning" className="text-[10px] px-1 h-4 animate-pulse">
-                  Chọn TH
-                </Badge>
-              )}
             </div>
             <p className="text-xs opacity-70 mt-0.5">{course.courseCode}</p>
           </div>
-          <Badge variant={isRegistered ? "success" : "secondary"} className="shrink-0 pointer-events-none">
-            {course.credits} TC
-          </Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge
+              variant={
+                hasRegisteredTheory && (!course.hasPracticalClass || hasRegisteredPractical) ? "success" : "secondary"
+              }
+              className="shrink-0 pointer-events-none whitespace-nowrap"
+            >
+              {course.credits} TC
+            </Badge>
+          </div>
         </div>
 
         <div className="mt-2 flex flex-wrap gap-1">
           {course.hasTheoryClass && (
-            <Badge variant="info" className="text-xs pointer-events-none">
-              Lý thuyết
+            <Badge
+              variant={hasRegisteredTheory ? "success" : "info"}
+              className="text-[10px] h-4 px-1.5 py-0 pointer-events-none"
+            >
+              {hasRegisteredTheory ? "Đã ĐK LT" : "LT"}
+              {course.theoryCredits && ` (${course.theoryCredits} TC)`}
             </Badge>
           )}
           {course.hasPracticalClass && (
-            <Badge variant="warning" className="text-xs pointer-events-none">
-              Thực hành
-            </Badge>
-          )}
-          {isRegistered && (
-            <Badge variant="success" className="text-xs pointer-events-none">
-              Đã ĐK ({registeredSectionsCount})
+            <Badge
+              variant={hasRegisteredPractical ? "success" : "warning"}
+              className="text-[10px] h-4 px-1.5 py-0 pointer-events-none"
+            >
+              {hasRegisteredPractical ? "Đã ĐK TH" : "TH"}
+              {course.practicalCredits && ` (${course.practicalCredits} TC)`}
             </Badge>
           )}
         </div>
