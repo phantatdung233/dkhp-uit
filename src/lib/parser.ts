@@ -2,7 +2,7 @@ import * as XLSX from "xlsx";
 import { parse, isValid } from "date-fns";
 import type { ClassSection, Course, ParseResult, ParseError } from "@/types";
 
-const REQUIRED_HEADERS = ["MÃ MH", "MÃ LỚP", "TÊN MÔN HỌC", "THỨ", "TIẾT"];
+const REQUIRED_HEADERS = ["MÃ MH", "MÃ LỚP", "TÊN MÔN HỌC"];
 const HEADER_ALIASES: Record<string, string[]> = {
   courseCode: ["MÃ MH"],
   classCode: ["MÃ LỚP"],
@@ -10,8 +10,9 @@ const HEADER_ALIASES: Record<string, string[]> = {
   lecturerCode: ["MÃ GIẢNG VIÊN", "MÃ GV"],
   lecturer: ["TÊN GIẢNG VIÊN", "TÊN TRỢ GIẢNG"],
   maxStudents: ["SĨ SỐ"],
-  credits: ["SỐ TC", "TC"],
+  credits: ["SỐ TC", "TỐ TC", "TC"],
   isPractical: ["THỰC HÀNH", "TH"],
+  htgd: ["HTGD"],
   day: ["THỨ"],
   periods: ["TIẾT"],
   room: ["PHÒNG HỌC"],
@@ -22,6 +23,12 @@ const HEADER_ALIASES: Record<string, string[]> = {
   endDate: ["NKT", "NGÀY KẾT THÚC"],
   note: ["GHI CHÚ", "GHICHU"],
 };
+
+/** HTGD values that represent flexible/hybrid schedules (e.g. HT1, HT2) */
+const FLEXIBLE_HTGD_PATTERN = /^HT\d*$/i;
+
+/** HTGD values that indicate no fixed schedule (Đồ án, KLTN, TTTN) */
+const NO_SCHEDULE_HTGD = ["ĐA", "KLTN", "TTTN"];
 
 // Precompute uppercase aliases for faster lookup
 const UPPER_ALIASES: Record<string, string[]> = Object.fromEntries(
@@ -103,8 +110,8 @@ function parseRawData(data: Record<string, unknown>[], isPracticalSheet = false)
 
   normalized.forEach((row, idx) => {
     try {
-      const s = parseRow(row, idx, isPracticalSheet);
-      if (s) sections.push(s);
+      const parsed = parseRow(row, idx, isPracticalSheet);
+      if (parsed) sections.push(...parsed);
     } catch (err) {
       errors.push({
         row: idx + 2,
@@ -137,7 +144,11 @@ function getVal(row: Record<string, unknown>, aliasKey: keyof typeof UPPER_ALIAS
   return undefined;
 }
 
-function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet = false): ClassSection | null {
+/**
+ * Parse a single row. May return multiple ClassSections for multi-day schedules.
+ * Returns null (as empty array) for empty rows.
+ */
+function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet = false): ClassSection[] | null {
   const v = (k: keyof typeof UPPER_ALIASES) => getVal(row, k);
   const classCode = getString(v("classCode"));
   const courseName = getString(v("courseName"));
@@ -146,17 +157,108 @@ function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet 
   if (!courseName) throw new Error("Thiếu TÊN MÔN HỌC");
 
   const courseCode = getString(v("courseCode")) || classCode.split(".")[0];
-  const dayResult = parseDay(v("day"));
-  const periodsResult = parsePeriods(v("periods"));
-  if (!dayResult.isFlexible && dayResult.day === null) throw new Error("THỨ không hợp lệ");
-  if (!periodsResult.isFlexible && !periodsResult.periods) throw new Error("TIẾT không hợp lệ");
+  const isPractical = parseBoolean(v("isPractical")) || isPracticalSheet;
+  const htgd = getString(v("htgd")).toUpperCase();
+
+  // Parse THỨ and TIẾT with HTGD awareness
+  const dayRaw = getString(v("day"));
+  const periodsRaw = getString(v("periods"));
+
+  // Determine if this is a flexible/no-schedule class based on HTGD
+  const isFlexibleHTGD = FLEXIBLE_HTGD_PATTERN.test(htgd);
+  const isNoScheduleHTGD = NO_SCHEDULE_HTGD.includes(htgd);
+
+  // Handle case when both THỨ and TIẾT are empty
+  if (!dayRaw && !periodsRaw) {
+    if (isFlexibleHTGD || isNoScheduleHTGD || !htgd) {
+      // This is a flexible/no-schedule class (ĐA, KLTN, TTTN, HT2, etc.)
+      return [buildSection(classCode, courseCode, courseName, row, v, index, isPractical, {
+        dayOfWeek: null,
+        isFlexibleDay: true,
+        periods: "*",
+        startPeriod: 0,
+        periodCount: 0,
+        isFlexiblePeriod: true,
+      })];
+    }
+    throw new Error("THỨ và TIẾT trống");
+  }
+
+  // Check for multi-day schedule: THỨ="3, 5", TIẾT="45, 123"
+  if (dayRaw.includes(",")) {
+    return parseMultiDayRow(classCode, courseCode, courseName, row, v, index, isPractical, dayRaw, periodsRaw);
+  }
+
+  // Single day parsing
+  const dayResult = parseDay(dayRaw);
+  const periodsResult = parsePeriods(periodsRaw);
+
+  // If THỨ is empty but TIẾT has value (or vice versa), check HTGD
+  if (dayResult.day === null && !dayResult.isFlexible) {
+    if (isFlexibleHTGD) {
+      // Flexible schedule like HT2 — THỨ empty is ok
+      return [buildSection(classCode, courseCode, courseName, row, v, index, isPractical, {
+        dayOfWeek: null,
+        isFlexibleDay: true,
+        periods: periodsResult.periods ?? "*",
+        startPeriod: 0,
+        periodCount: 0,
+        isFlexiblePeriod: true,
+      })];
+    }
+    throw new Error("THỨ không hợp lệ");
+  }
+
+  if (!periodsResult.isFlexible && !periodsResult.periods) {
+    if (isFlexibleHTGD) {
+      return [buildSection(classCode, courseCode, courseName, row, v, index, isPractical, {
+        dayOfWeek: dayResult.day,
+        isFlexibleDay: dayResult.isFlexible,
+        periods: "*",
+        startPeriod: 0,
+        periodCount: 0,
+        isFlexiblePeriod: true,
+      })];
+    }
+    throw new Error("TIẾT không hợp lệ");
+  }
 
   const periodStr = periodsResult.periods ?? "*";
   const { startPeriod, periodCount } = parsePeriodInfo(periodStr);
-  const isPractical = parseBoolean(v("isPractical")) || isPracticalSheet;
 
+  return [buildSection(classCode, courseCode, courseName, row, v, index, isPractical, {
+    dayOfWeek: dayResult.day,
+    isFlexibleDay: dayResult.isFlexible,
+    periods: periodStr,
+    startPeriod,
+    periodCount,
+    isFlexiblePeriod: periodsResult.isFlexible,
+  })];
+}
+
+/**
+ * Build a ClassSection with common fields + schedule-specific fields.
+ */
+function buildSection(
+  classCode: string,
+  courseCode: string,
+  courseName: string,
+  row: Record<string, unknown>,
+  v: (k: keyof typeof UPPER_ALIASES) => unknown,
+  index: number,
+  isPractical: boolean,
+  schedule: {
+    dayOfWeek: number | null;
+    isFlexibleDay: boolean;
+    periods: string;
+    startPeriod: number;
+    periodCount: number;
+    isFlexiblePeriod: boolean;
+  },
+  idSuffix = ""
+): ClassSection {
   return {
-    id: `${classCode}-${index}`,
+    id: `${classCode}-${index}${idSuffix}`,
     courseCode,
     classCode,
     courseName,
@@ -164,21 +266,93 @@ function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet 
     lecturerCode: getString(v("lecturerCode")),
     credits: parseNumber(v("credits")) || 0,
     isPractical,
-    dayOfWeek: dayResult.day,
-    isFlexibleDay: dayResult.isFlexible,
-    periods: periodStr,
-    startPeriod,
-    periodCount,
-    isFlexiblePeriod: periodsResult.isFlexible,
+    dayOfWeek: schedule.dayOfWeek,
+    isFlexibleDay: schedule.isFlexibleDay,
+    periods: schedule.periods,
+    startPeriod: schedule.startPeriod,
+    periodCount: schedule.periodCount,
+    isFlexiblePeriod: schedule.isFlexiblePeriod,
     startDate: parseDate(v("startDate")),
     endDate: parseDate(v("endDate")),
-    maxStudents: parseNumber(v("maxStudents")),
+    maxStudents: parseSiSo(v("maxStudents")),
     room: getString(v("room")),
     weekType: parseNumber(v("weekType")),
     note: getString(v("note")),
     semester: parseNumber(v("semester")),
     academicYear: getString(v("academicYear")),
   };
+}
+
+/**
+ * Parse a multi-day row into multiple ClassSections.
+ *
+ * Example: THỨ="3, 5", TIẾT="45, 123"
+ *   → Section 1: day=3, periods="4,5"
+ *   → Section 2: day=5, periods="1,2,3"
+ */
+function parseMultiDayRow(
+  classCode: string,
+  courseCode: string,
+  courseName: string,
+  row: Record<string, unknown>,
+  v: (k: keyof typeof UPPER_ALIASES) => unknown,
+  index: number,
+  isPractical: boolean,
+  dayRaw: string,
+  periodsRaw: string
+): ClassSection[] {
+  const dayParts = dayRaw.split(",").map((s) => s.trim()).filter(Boolean);
+  const periodGroups = groupPeriodsForMultiDay(periodsRaw, dayParts.length);
+
+  const sections: ClassSection[] = [];
+
+  for (let i = 0; i < dayParts.length; i++) {
+    const day = Number(dayParts[i]);
+    if (!Number.isInteger(day)) continue;
+
+    const periods = periodGroups[i] || [];
+    if (periods.length === 0) continue;
+
+    const periodStr = periods.join(",");
+    const sorted = [...periods].sort((a, b) => a - b);
+
+    sections.push(buildSection(classCode, courseCode, courseName, row, v, index, isPractical, {
+      dayOfWeek: day,
+      isFlexibleDay: false,
+      periods: periodStr,
+      startPeriod: sorted[0],
+      periodCount: sorted.length,
+      isFlexiblePeriod: false,
+    }, `-d${day}`));
+  }
+
+  return sections;
+}
+
+/**
+ * Group TIẾT string for multi-day schedules.
+ *
+ * Input: periodsRaw="45, 123", numDays=2
+ * Output: [[4,5], [1,2,3]]
+ *
+ * Strategy: Split by ", " (with space) first, then parse each part.
+ */
+function groupPeriodsForMultiDay(periodsRaw: string, numDays: number): number[][] {
+  // Split by ", " (comma+space) to separate day groups
+  const parts = periodsRaw.split(/,\s+/);
+
+  if (parts.length === numDays) {
+    return parts.map((part) => parseDigitPeriods(part));
+  }
+
+  // Fallback: parse all and split evenly
+  const allPeriods = parseDigitPeriods(periodsRaw);
+  const perGroup = Math.ceil(allPeriods.length / numDays);
+  const groups: number[][] = [];
+  for (let i = 0; i < numDays; i++) {
+    groups.push(allPeriods.slice(i * perGroup, (i + 1) * perGroup));
+  }
+  return groups;
 }
 
 function parsePeriodInfo(periods: string): { startPeriod: number; periodCount: number } {
@@ -233,7 +407,7 @@ function groupSectionsToCourses(sections: ClassSection[]): Course[] {
   return Array.from(map.values());
 }
 
-/* ===== helpers (kept logic) ===== */
+/* ===== helpers ===== */
 
 function getString(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -246,19 +420,50 @@ function parseNumber(value: unknown): number | undefined {
   return isNaN(n) ? undefined : n;
 }
 
+/**
+ * Parse SĨ SỐ format: "40(0)" → 40, "10(5)" → 10, "100" → 100
+ * Extracts just the capacity (max students), ignoring registered count.
+ */
+function parseSiSo(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const str = getString(value);
+  // Match "40(0)" or "100(23)" format
+  const match = str.match(/^(\d+)\s*\(\d+\)$/);
+  if (match) return parseInt(match[1], 10);
+  // Plain number
+  const n = Number(str);
+  return isNaN(n) ? undefined : n;
+}
+
 function parseDay(value: unknown): { day: number | null; isFlexible: boolean } {
-  const str = String(value).trim();
+  const str = getString(value);
+  if (!str) return { day: null, isFlexible: false };
   if (str === "*") return { day: null, isFlexible: true };
   const day = Number(str);
   if (Number.isInteger(day)) return { day, isFlexible: false };
   return { day: null, isFlexible: false };
 }
 
+/**
+ * Parse TIẾT column value into a normalized comma-separated string.
+ *
+ * Handles:
+ *   - "123"      → "1,2,3"
+ *   - "678"      → "6,7,8"
+ *   - "67890"    → "6,7,8,9,10"    (0 → 10)
+ *   - "12345"    → "1,2,3,4,5"
+ *   - "121314"   → "12,13,14"       (2-digit periods for tối)
+ *   - "11121314" → "11,12,13,14"
+ *   - "1,2,3"    → "1,2,3"          (already comma-separated)
+ *   - ""         → null
+ *   - "*"        → "*" (flexible)
+ */
 function parsePeriods(value: unknown): { periods: string | null; isFlexible: boolean } {
   const str = getString(value);
   if (!str) return { periods: null, isFlexible: false };
   if (str === "*") return { periods: "*", isFlexible: true };
-  if (str.includes(","))
+  // Already comma-separated
+  if (str.includes(",")) {
     return {
       periods: str
         .split(",")
@@ -267,16 +472,52 @@ function parsePeriods(value: unknown): { periods: string | null; isFlexible: boo
         .join(","),
       isFlexible: false,
     };
+  }
+  // Pure digit string — use smart parsing
   if (/^\d+$/.test(str)) {
+    const nums = parseDigitPeriods(str);
     return {
-      periods: str
-        .split("")
-        .map((c) => (c === "0" ? "10" : c))
-        .join(","),
+      periods: nums.join(","),
       isFlexible: false,
     };
   }
   return { periods: str, isFlexible: false };
+}
+
+/**
+ * Smart parser for continuous digit period strings.
+ *
+ * Strategy:
+ *   1. Check if the string can be evenly split into 2-digit numbers that are all ≥10 and ≤15
+ *      AND form a consecutive sequence (e.g., "121314" → [12,13,14])
+ *   2. Otherwise, parse character-by-character where '0' = 10
+ *      (e.g., "12345" → [1,2,3,4,5], "67890" → [6,7,8,9,10])
+ */
+function parseDigitPeriods(str: string): number[] {
+  // Try 2-digit parsing first if string length is even and ≥ 2
+  if (str.length >= 2 && str.length % 2 === 0) {
+    const twoDigit: number[] = [];
+    let valid = true;
+    for (let i = 0; i < str.length; i += 2) {
+      const num = parseInt(str.substring(i, i + 2), 10);
+      if (num >= 10 && num <= 15) {
+        twoDigit.push(num);
+      } else {
+        valid = false;
+        break;
+      }
+    }
+    if (valid && twoDigit.length > 0) {
+      // Verify it's a reasonable sequence (consecutive)
+      const isConsecutive = twoDigit.every((v, i) => i === 0 || v === twoDigit[i - 1] + 1);
+      if (isConsecutive) {
+        return twoDigit;
+      }
+    }
+  }
+
+  // Character-by-character parsing: '0' → 10
+  return str.split("").map((ch) => (ch === "0" ? 10 : parseInt(ch, 10)));
 }
 
 function parseBoolean(value: unknown): boolean {
@@ -289,8 +530,12 @@ function parseDate(value: unknown): Date | null {
   if (value instanceof Date && isValid(value)) return value;
   const s = getString(value);
   if (!s) return null;
+  // Try ISO format first: "2026-09-07"
   const parsed = parse(s, "yyyy-MM-dd", new Date());
   if (isValid(parsed)) return parsed;
+  // Try dd/MM/yyyy format
+  const parsedDmy = parse(s, "dd/MM/yyyy", new Date());
+  if (isValid(parsedDmy)) return parsedDmy;
   const nativeD = new Date(s);
   return isValid(nativeD) ? nativeD : null;
 }

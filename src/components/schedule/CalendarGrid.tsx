@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { useScheduleStore, useSlotHighlight } from "@/store/schedule-store";
+import { getConflictingScheduledClasses } from "@/store/schedule-store-helpers";
 import type { ScheduledClass } from "@/types";
 import { DAY_NAMES, PERIOD_TIMES } from "@/types";
 import { cn } from "@/lib/utils";
@@ -289,17 +290,17 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
             </div>
           ))}
 
-          {/* Highlighted blocks overlay */}
-          <HighlightedBlocksOverlay
-            highlightedSlots={highlightedSlots}
-            maxPeriod={maxPeriodUsed}
-            visibleDays={mobileDays}
-          />
-
           {/* Scheduled classes overlay */}
           <ScheduledClassesOverlay
             scheduledClasses={regularClasses}
             onRemove={removeClassFromSchedule}
+            visibleDays={mobileDays}
+          />
+
+          {/* Highlighted blocks overlay (Rendered ON TOP of scheduled classes) */}
+          <HighlightedBlocksOverlay
+            highlightedSlots={highlightedSlots}
+            maxPeriod={maxPeriodUsed}
             visibleDays={mobileDays}
           />
         </div>
@@ -309,8 +310,7 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
           <div className="mt-6">
             <div className="mb-2 px-2">
               <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-                Lịch Linh Hoạt
+                Thời Gian Linh Hoạt
               </h3>
             </div>
             <div className="border rounded-lg overflow-hidden">
@@ -373,17 +373,51 @@ interface TimeSlotCellProps {
 
 function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
   const slotHighlight = useSlotHighlight(dayOfWeek, period);
-  const { clickSelectedCourse, clickSelectedLecturer, addClassToSchedule, openClassSelectionModal } =
-    useScheduleStore();
+  const {
+    clickSelectedCourse,
+    clickSelectedLecturer,
+    scheduledClasses,
+    addClassToSchedule,
+    replaceClassWithSection,
+    openClassSelectionModal,
+  } = useScheduleStore();
 
   // Determine cell state
   const isHighlighted = slotHighlight && slotHighlight.availableSections.length > 0;
   const hasConflict = slotHighlight?.hasConflict;
+  const hasConflictingSections = (slotHighlight?.conflictingSections?.length || 0) > 0;
   const hasClickSelection = clickSelectedCourse !== null;
 
-  // Handle click to place
+  // Handle click to place or replace
   const handleClick = useCallback(() => {
-    if (!hasClickSelection || !isHighlighted || hasConflict) return;
+    if (!hasClickSelection) return;
+
+    // Trường hợp slot có lớp bị trùng lịch -> 1-chạm thay thế ngay
+    if (hasConflict || hasConflictingSections) {
+      const conflictingSections = slotHighlight?.conflictingSections || [];
+      const filteredConflicting = clickSelectedLecturer
+        ? conflictingSections.filter((s) => s.lecturer === clickSelectedLecturer)
+        : conflictingSections;
+
+      if (filteredConflicting.length === 1) {
+        const section = filteredConflicting[0];
+        const result = replaceClassWithSection(section);
+        if (result.success) {
+          const removedNames = result.removedClasses?.map((c) => c.courseName).join(", ");
+          toast.success(
+            removedNames
+              ? `Đã thay thế "${removedNames}" bằng "${section.courseName}"`
+              : `Đã thay thế bằng "${section.courseName}"`
+          );
+        }
+        return;
+      } else if (filteredConflicting.length > 1) {
+        openClassSelectionModal(filteredConflicting, { dayOfWeek, period });
+        return;
+      }
+    }
+
+    if (!isHighlighted || hasConflict) return;
 
     // Get available sections for this slot
     const availableSections = slotHighlight?.availableSections || [];
@@ -413,11 +447,14 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
     }
   }, [
     hasClickSelection,
-    isHighlighted,
     hasConflict,
+    hasConflictingSections,
+    isHighlighted,
     slotHighlight,
     clickSelectedLecturer,
+    scheduledClasses,
     addClassToSchedule,
+    replaceClassWithSection,
     openClassSelectionModal,
     dayOfWeek,
     period,
@@ -433,7 +470,7 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
         // Click selection mode - clickable highlighted slots
         hasClickSelection && isHighlighted && !hasConflict && "cursor-pointer",
         // Conflict state
-        hasClickSelection && hasConflict && "bg-red-100",
+        hasClickSelection && hasConflict && "bg-red-100/60 cursor-pointer",
         // When not a valid slot
         hasClickSelection && !isHighlighted && !hasConflict && "bg-gray-50/50"
       )}

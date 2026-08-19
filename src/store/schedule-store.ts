@@ -18,6 +18,7 @@ import {
   checkDuplicateTypeRegistration,
   validatePracticalWithPendingTheory,
   findPairedClass,
+  getConflictingScheduledClasses,
 } from "./schedule-store-helpers";
 
 interface ScheduleState {
@@ -55,6 +56,10 @@ interface ScheduleState {
   classSelectionOptions: ClassSection[];
   pendingSlot: { dayOfWeek: number; period: number } | null;
 
+  // State cho modal thay thế lớp bị trùng
+  isReplaceModalOpen: boolean;
+  replaceModalData: { newSection: ClassSection; conflictingClasses: ScheduledClass[] } | null;
+
   isLoading: boolean;
   errorMessage: string | null;
 
@@ -74,6 +79,13 @@ interface ScheduleState {
     section: ClassSection,
     skipPracticalPrompt?: boolean
   ) => { success: boolean; conflicts: Conflict[]; error?: string; pendingPractical?: boolean };
+  replaceClassWithSection: (newSection: ClassSection) => {
+    success: boolean;
+    conflicts: Conflict[];
+    error?: string;
+    removedClasses?: ClassSection[];
+    pendingPractical?: boolean;
+  };
   removeClassFromSchedule: (classId: string) => void;
   clearSchedule: () => void;
 
@@ -93,6 +105,9 @@ interface ScheduleState {
   openClassSelectionModal: (options: ClassSection[], slot: { dayOfWeek: number; period: number }) => void;
   closeClassSelectionModal: () => void;
   selectClassFromModal: (section: ClassSection) => void;
+  openReplaceModal: (newSection: ClassSection, conflictingClasses: ScheduledClass[]) => void;
+  closeReplaceModal: () => void;
+  confirmReplace: () => void;
 
   setLoading: (loading: boolean) => void;
   setError: (message: string | null) => void;
@@ -139,6 +154,9 @@ export const useScheduleStore = create<ScheduleState>()(
         isClassSelectionModalOpen: false,
         classSelectionOptions: [],
         pendingSlot: null,
+
+        isReplaceModalOpen: false,
+        replaceModalData: null,
 
         isLoading: false,
         errorMessage: null,
@@ -287,6 +305,79 @@ export const useScheduleStore = create<ScheduleState>()(
           });
 
           return { success: true, conflicts: [] };
+        },
+
+        replaceClassWithSection: (newSection) => {
+          const state = get();
+          const conflicting = getConflictingScheduledClasses(newSection, state.scheduledClasses);
+          const conflictingIds = conflicting.map((c) => c.id);
+
+          // 1. Xóa các lớp bị trùng (và lớp đi kèm nếu có)
+          let newScheduledClasses = state.scheduledClasses.filter((sc) => !conflictingIds.includes(sc.id));
+
+          // 2. Thêm lớp mới
+          const newScheduledClass: ScheduledClass = {
+            id: `scheduled-${newSection.id}-${Date.now()}`,
+            classSection: newSection,
+            addedAt: new Date(),
+          };
+
+          newScheduledClasses.push(newScheduledClass);
+
+          // 3. Nếu là LT và có các lớp TH đi kèm, kiểm tra xem có cần chọn TH không
+          const practicalSections = !newSection.isPractical
+            ? state.allSections.filter(
+                (s) =>
+                  s.courseCode === newSection.courseCode &&
+                  s.isPractical &&
+                  s.classCode.startsWith(newSection.classCode + ".")
+              )
+            : [];
+
+          const hasPendingPractical = !newSection.isPractical && practicalSections.length > 0;
+
+          // 4. Cập nhật warnings
+          const removedSectionIds = conflicting.map((sc) => sc.classSection.id);
+          let newWarnings = state.warnings.filter(
+            (w) => !w.conflictingClasses.some((c) => removedSectionIds.includes(c.id))
+          );
+
+          const missingWarning = checkMissingPairedClass(newSection, newScheduledClasses, state.allSections);
+          if (missingWarning) {
+            newWarnings = [...newWarnings.filter((w) => w.id !== missingWarning.id), missingWarning];
+          }
+
+          const newTotalCredits = getTotalCredits(newScheduledClasses);
+          const newSchedules = state.schedules.map((s) =>
+            s.id === state.currentScheduleId
+              ? {
+                  ...s,
+                  scheduledClasses: newScheduledClasses,
+                  warnings: newWarnings,
+                  totalCredits: newTotalCredits,
+                }
+              : s
+          );
+
+          set({
+            scheduledClasses: newScheduledClasses,
+            warnings: newWarnings,
+            totalCredits: newTotalCredits,
+            schedules: newSchedules,
+            pendingTheorySection: hasPendingPractical ? newSection : null,
+            clickSelectedCourse: hasPendingPractical ? state.clickSelectedCourse : null,
+            clickSelectedLecturer: null,
+            highlightedSlots: [],
+          });
+
+          get().updateHighlightedSlots();
+
+          return {
+            success: true,
+            conflicts: [],
+            removedClasses: conflicting.map((c) => c.classSection),
+            pendingPractical: hasPendingPractical,
+          };
         },
 
         removeClassFromSchedule: (classId) => {
@@ -568,6 +659,28 @@ export const useScheduleStore = create<ScheduleState>()(
           const result = get().addClassToSchedule(section);
           if (result.success) {
             get().closeClassSelectionModal();
+          }
+        },
+
+        openReplaceModal: (newSection, conflictingClasses) =>
+          set({
+            isReplaceModalOpen: true,
+            replaceModalData: { newSection, conflictingClasses },
+          }),
+
+        closeReplaceModal: () =>
+          set({
+            isReplaceModalOpen: false,
+            replaceModalData: null,
+          }),
+
+        confirmReplace: () => {
+          const state = get();
+          if (!state.replaceModalData) return;
+          const { newSection } = state.replaceModalData;
+          const result = get().replaceClassWithSection(newSection);
+          if (result.success) {
+            get().closeReplaceModal();
           }
         },
 

@@ -285,12 +285,22 @@ export function getHighlightedSlots(
         slotMap.set(slotId, {
           slot: { id: slotId, dayOfWeek: section.dayOfWeek, period },
           availableSections: [],
+          conflictingSections: [],
           hasConflict: false,
         });
       }
       const slot = slotMap.get(slotId)!;
-      if (hasAnyConflict) slot.hasConflict = true;
-      else slot.availableSections.push(section);
+      if (hasAnyConflict) {
+        slot.hasConflict = true;
+        if (!slot.conflictingSections) slot.conflictingSections = [];
+        if (!slot.conflictingSections.some((s) => s.id === section.id)) {
+          slot.conflictingSections.push(section);
+        }
+      } else {
+        if (!slot.availableSections.some((s) => s.id === section.id)) {
+          slot.availableSections.push(section);
+        }
+      }
     }
   }
 

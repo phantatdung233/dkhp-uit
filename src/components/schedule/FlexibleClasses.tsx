@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useScheduleStore } from "@/store/schedule-store";
+import { getConflictingScheduledClasses } from "@/store/schedule-store-helpers";
 import type { ClassSection, ScheduledClass } from "@/types";
 import { DAY_NAMES, COURSE_COLORS } from "@/types";
 import { cn } from "@/lib/utils";
@@ -223,7 +224,7 @@ interface FlexibleSectionSelectorProps {
 }
 
 export function FlexibleSectionSelector({ sections }: FlexibleSectionSelectorProps) {
-  const { addClassToSchedule, clickSelectedLecturer, scheduledClasses } = useScheduleStore();
+  const { addClassToSchedule, clickSelectedLecturer, scheduledClasses, replaceClassWithSection } = useScheduleStore();
 
   // Build color map from ALL scheduled classes for consistent colors
   const courseColorMap = new Map<string, number>();
@@ -240,6 +241,20 @@ export function FlexibleSectionSelector({ sections }: FlexibleSectionSelectorPro
     : sections;
 
   function handleSelectSection(section: ClassSection): void {
+    const conflictingClasses = getConflictingScheduledClasses(section, scheduledClasses);
+    if (conflictingClasses.length > 0) {
+      const result = replaceClassWithSection(section);
+      if (result.success) {
+        const removedNames = result.removedClasses?.map((c) => c.courseName).join(", ");
+        toast.success(
+          removedNames
+            ? `Đã thay thế "${removedNames}" bằng "${section.courseName}"`
+            : `Đã thay thế bằng "${section.courseName}"`
+        );
+      }
+      return;
+    }
+
     const result = addClassToSchedule(section);
     if (!result.success) {
       if (result.error) {

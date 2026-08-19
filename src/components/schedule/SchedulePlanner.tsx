@@ -7,7 +7,7 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
 
 import { Sidebar } from "./Sidebar";
 import { CalendarGrid } from "./CalendarGrid";
@@ -41,14 +41,16 @@ export function SchedulePlanner({ forceFullCalendar = false }: SchedulePlannerPr
     <TooltipProvider>
       <div className="flex h-full relative">
         {/* Mobile sidebar toggle button */}
-        <Button
-          variant="outline"
-          size="icon"
-          className="fixed bottom-4 left-4 z-50 lg:hidden shadow-lg bg-white"
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        >
-          {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
+        {!isSidebarOpen && (
+          <Button
+            variant="outline"
+            size="icon"
+            className="fixed bottom-4 left-4 z-50 lg:hidden shadow-lg bg-white"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
 
         {/* Mobile overlay */}
         {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={handleOverlayClick} />}

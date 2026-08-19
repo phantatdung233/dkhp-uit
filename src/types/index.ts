@@ -197,6 +197,9 @@ export interface FilterOptions {
 
   /** Lọc theo loại (lý thuyết/thực hành) */
   classType: "all" | "theory" | "practical";
+
+  /** Lọc theo nhóm đặc biệt (none, ANTT, TTNT, ...) */
+  specialGroup?: string;
 }
 
 /**
@@ -208,6 +211,9 @@ export interface HighlightedSlot {
 
   /** Các ClassSection có thể thả vào slot này */
   availableSections: ClassSection[];
+
+  /** Các ClassSection bị trùng lịch ở slot này */
+  conflictingSections?: ClassSection[];
 
   /** Có conflict với lịch hiện tại không */
   hasConflict: boolean;

@@ -4,10 +4,11 @@
  * HighlightedBlocks Components
  * ============================
  * Components hiển thị các block được highlight khi chọn môn học từ sidebar
+ * Hiển thị đè lên trên lớp đã chọn khi có trùng lịch và hỗ trợ thay thế 1-chạm
  */
 
 import React from "react";
-import { Users } from "lucide-react";
+import { Users, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { useScheduleStore } from "@/store/schedule-store";
@@ -31,8 +32,8 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
 
   if (highlightedSlots.length === 0) return null;
 
-  // Group sections by their exact slot range (day, start, count)
-  // This avoids overlapping blocks and allows showing multiple options in one block
+  // Group sections by their exact slot range (day, start, count, hasConflict)
+  // This avoids overlapping blocks and cleanly separates available vs conflicting blocks
   const blocksByRange = new Map<
     string,
     { dayOfWeek: number; startPeriod: number; periodCount: number; hasConflict: boolean; sections: ClassSection[] }
@@ -43,9 +44,9 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
 
     if (period > maxPeriod) return;
 
+    // Available sections (Green blocks)
     slot.availableSections.forEach((section: ClassSection) => {
-      // We use the section's actual range to group
-      const key = `${dayOfWeek}-${section.startPeriod}-${section.periodCount}`;
+      const key = `${dayOfWeek}-${section.startPeriod}-${section.periodCount}-available`;
 
       if (!blocksByRange.has(key)) {
         blocksByRange.set(key, {
@@ -61,8 +62,26 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
       if (!block.sections.find((s) => s.id === section.id)) {
         block.sections.push(section);
       }
-      // If any slot in this range has a conflict for this section, mark it
-      if (slot.hasConflict) block.hasConflict = true;
+    });
+
+    // Conflicting sections (Red blocks for replacement)
+    (slot.conflictingSections || []).forEach((section: ClassSection) => {
+      const key = `${dayOfWeek}-${section.startPeriod}-${section.periodCount}-conflict`;
+
+      if (!blocksByRange.has(key)) {
+        blocksByRange.set(key, {
+          dayOfWeek,
+          startPeriod: section.startPeriod,
+          periodCount: section.periodCount,
+          hasConflict: true,
+          sections: [],
+        });
+      }
+
+      const block = blocksByRange.get(key)!;
+      if (!block.sections.find((s) => s.id === section.id)) {
+        block.sections.push(section);
+      }
     });
   });
 
@@ -71,9 +90,7 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
   const isClickMode = clickSelectedCourse !== null;
 
   blocksByRange.forEach((block, key) => {
-    // Desktop: use all days
     const desktopDayIndex = DAYS.indexOf(block.dayOfWeek);
-    // Mobile: use visible days
     const mobileDayIndex = visibleDays.indexOf(block.dayOfWeek);
 
     if (desktopDayIndex === -1) return;
@@ -91,7 +108,7 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
     );
   });
 
-  return <div className="absolute inset-0 z-10 left-14 sm:left-20">{blockElements}</div>;
+  return <div className="absolute inset-0 z-30 left-14 sm:left-20 pointer-events-none">{blockElements}</div>;
 }
 
 // ============ Clickable Highlight Block ============
@@ -119,7 +136,7 @@ function ClickableHighlightBlock({
   mobileDaysCount,
   isClickMode,
 }: ClickableHighlightBlockProps) {
-  const { addClassToSchedule, clickSelectedLecturer } = useScheduleStore();
+  const { addClassToSchedule, clickSelectedLecturer, replaceClassWithSection } = useScheduleStore();
 
   // Desktop positioning
   const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
@@ -138,6 +155,20 @@ function ClickableHighlightBlock({
     : block.sections;
 
   function handleSelectSection(section: ClassSection): void {
+    if (block.hasConflict) {
+      // 1-chạm thay thế ngay lập tức
+      const result = replaceClassWithSection(section);
+      if (result.success) {
+        const removedNames = result.removedClasses?.map((c) => c.courseName).join(", ");
+        toast.success(
+          removedNames
+            ? `Đã thay thế "${removedNames}" bằng "${section.courseName}"`
+            : `Đã thay thế bằng "${section.courseName}"`
+        );
+      }
+      return;
+    }
+
     const result = addClassToSchedule(section);
     if (!result.success) {
       if (result.error) {
@@ -151,7 +182,7 @@ function ClickableHighlightBlock({
   }
 
   function handleClick(): void {
-    if (block.hasConflict || !isClickMode) return;
+    if (!isClickMode || filteredSections.length === 0) return;
     if (filteredSections.length === 1) {
       handleSelectSection(filteredSections[0]);
     }
@@ -165,17 +196,22 @@ function ClickableHighlightBlock({
       <div
         onClick={handleClick}
         className={cn(
-          "absolute border-2 rounded-md transition-all z-20 overflow-hidden hidden md:block",
+          "absolute border-2 rounded-md transition-all overflow-hidden hidden md:block",
           block.hasConflict
-            ? "border-red-400 bg-red-100/50 pointer-events-none"
-            : isClickMode
             ? cn(
-                "cursor-pointer pointer-events-auto",
+              "z-30 border-red-500 bg-red-50/95 shadow-md",
+              isClickMode
+                ? "cursor-pointer pointer-events-auto hover:bg-red-100 hover:border-red-600 hover:shadow-lg"
+                : "pointer-events-none opacity-80"
+            )
+            : isClickMode
+              ? cn(
+                "z-20 cursor-pointer pointer-events-auto",
                 hasMultipleOptions
                   ? "border-green-400 bg-green-50/90 shadow-sm"
                   : "border-green-400 bg-green-100/70 hover:bg-green-200/80 hover:border-green-500"
               )
-            : "border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
+              : "z-20 border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
         )}
         style={{
           left: desktopLeft,
@@ -185,14 +221,28 @@ function ClickableHighlightBlock({
         }}
       >
         {/* Nội dung hiển thị trong block */}
-        {isClickMode && !block.hasConflict && (
+        {isClickMode && (
           <div className="h-full flex flex-col">
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
-                <span>{filteredSections.length} LỰA CHỌN</span>
-                <Users className="h-2.5 w-2.5" />
-              </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+              {block.hasConflict ? (
+                <div className="bg-red-600 text-white text-[9px] font-bold py-0.5 px-1.5 flex items-center justify-between shrink-0 shadow-sm">
+                  <span className="truncate">
+                    {hasMultipleOptions ? `${filteredSections.length} LỚP TRÙNG` : "TRÙNG LỊCH"}
+                  </span>
+                  <RefreshCw className="h-2.5 w-2.5 shrink-0" />
+                </div>
+              ) : (
+                <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
+                  <span>{filteredSections.length} LỰA CHỌN</span>
+                  <Users className="h-2.5 w-2.5" />
+                </div>
+              )}
+              <div
+                className={cn(
+                  "flex-1 overflow-y-auto custom-scrollbar",
+                  block.hasConflict ? "bg-red-50/70" : "bg-white/50"
+                )}
+              >
                 {filteredSections.map((section) => (
                   <button
                     key={section.id}
@@ -200,12 +250,36 @@ function ClickableHighlightBlock({
                       e.stopPropagation();
                       handleSelectSection(section);
                     }}
-                    className="w-full text-left px-1.5 py-1 border-b border-green-100 hover:bg-green-100 transition-colors flex flex-col group"
+                    className={cn(
+                      "w-full text-left px-1.5 py-1 border-b transition-colors flex flex-col group",
+                      block.hasConflict
+                        ? "border-red-200 hover:bg-red-200/90"
+                        : "border-green-100 hover:bg-green-100"
+                    )}
                   >
-                    <span className="text-[10px] font-bold text-green-800 truncate leading-tight">
-                      {section.lecturer}
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold truncate leading-tight",
+                          block.hasConflict ? "text-red-950" : "text-green-800"
+                        )}
+                      >
+                        {section.lecturer}
+                      </span>
+                      {block.hasConflict && (
+                        <span className="text-[8px] font-bold text-white bg-red-600 px-1 py-0.2 rounded shrink-0 shadow-xs">
+                          Thay thế
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[9px] truncate",
+                        block.hasConflict ? "text-red-800 font-medium" : "text-green-600 opacity-80"
+                      )}
+                    >
+                      {section.classCode}
                     </span>
-                    <span className="text-[9px] text-green-600 truncate opacity-80">{section.classCode}</span>
                   </button>
                 ))}
               </div>
@@ -219,17 +293,22 @@ function ClickableHighlightBlock({
         <div
           onClick={handleClick}
           className={cn(
-            "absolute border-2 rounded-md transition-all z-20 overflow-hidden md:hidden",
+            "absolute border-2 rounded-md transition-all overflow-hidden md:hidden",
             block.hasConflict
-              ? "border-red-400 bg-red-100/50 pointer-events-none"
-              : isClickMode
               ? cn(
-                  "cursor-pointer pointer-events-auto",
+                "z-30 border-red-500 bg-red-50/95 shadow-md",
+                isClickMode
+                  ? "cursor-pointer pointer-events-auto hover:bg-red-100 hover:border-red-600"
+                  : "pointer-events-none opacity-80"
+              )
+              : isClickMode
+                ? cn(
+                  "z-20 cursor-pointer pointer-events-auto",
                   hasMultipleOptions
                     ? "border-green-400 bg-green-50/90 shadow-sm"
                     : "border-green-400 bg-green-100/70 hover:bg-green-200/80 hover:border-green-500"
                 )
-              : "border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
+                : "z-20 border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
           )}
           style={{
             left: mobileLeft,
@@ -239,14 +318,26 @@ function ClickableHighlightBlock({
           }}
         >
           {/* Nội dung hiển thị trong block */}
-          {isClickMode && !block.hasConflict && (
+          {isClickMode && (
             <div className="h-full flex flex-col">
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
-                  <span>{filteredSections.length}</span>
-                  <Users className="h-2.5 w-2.5" />
-                </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar bg-white/50">
+                {block.hasConflict ? (
+                  <div className="bg-red-600 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0 shadow-sm">
+                    <span className="truncate">Thay thế</span>
+                    <RefreshCw className="h-2.5 w-2.5 shrink-0" />
+                  </div>
+                ) : (
+                  <div className="bg-green-500 text-white text-[9px] font-bold py-0.5 px-1 flex items-center justify-between shrink-0">
+                    <span>{filteredSections.length}</span>
+                    <Users className="h-2.5 w-2.5" />
+                  </div>
+                )}
+                <div
+                  className={cn(
+                    "flex-1 overflow-y-auto custom-scrollbar",
+                    block.hasConflict ? "bg-red-50/70" : "bg-white/50"
+                  )}
+                >
                   {filteredSections.map((section) => (
                     <button
                       key={section.id}
@@ -254,9 +345,19 @@ function ClickableHighlightBlock({
                         e.stopPropagation();
                         handleSelectSection(section);
                       }}
-                      className="w-full text-left px-1 py-0.5 border-b border-green-100 hover:bg-green-100 transition-colors flex flex-col group"
+                      className={cn(
+                        "w-full text-left px-1 py-0.5 border-b transition-colors flex flex-col group",
+                        block.hasConflict
+                          ? "border-red-200 hover:bg-red-200/90"
+                          : "border-green-100 hover:bg-green-100"
+                      )}
                     >
-                      <span className="text-[9px] font-bold text-green-800 truncate leading-tight">
+                      <span
+                        className={cn(
+                          "text-[9px] font-bold truncate leading-tight",
+                          block.hasConflict ? "text-red-950" : "text-green-800"
+                        )}
+                      >
                         {section.lecturer}
                       </span>
                     </button>
@@ -270,3 +371,5 @@ function ClickableHighlightBlock({
     </>
   );
 }
+
+export default HighlightedBlocksOverlay;

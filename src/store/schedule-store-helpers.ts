@@ -1,16 +1,9 @@
-/**
- * Schedule Store Helpers
- * ======================
- * Helper functions extracted from schedule-store.ts
- * to reduce complexity and improve maintainability
- */
-
 import type { ClassSection, ScheduledClass } from "@/types";
+import { checkConflict } from "@/lib/schedule-utils";
 
 /**
- * Lọc các section hợp lệ - không trùng loại đã đăng ký, khớp mã LT-TH
+ * Lọc các section hợp lệ - không trùng lớp đã đăng ký chính xác, khớp mã LT-TH
  */
-
 export function filterValidSections(
   sections: ClassSection[],
   scheduledClasses: ScheduledClass[],
@@ -21,28 +14,63 @@ export function filterValidSections(
       .filter((sc) => sc.classSection.courseCode === section.courseCode)
       .map((sc) => sc.classSection);
 
-    // 1. Kiểm tra trùng loại
-    const sameTypeClass = registeredSections.find((s) => s.isPractical === section.isPractical);
-    if (sameTypeClass) return false;
+    // 1. Bỏ qua nếu chính lớp này đã được đăng ký
+    const exactClass = registeredSections.find((s) => s.classCode === section.classCode);
+    if (exactClass) return false;
 
-    // 2. Kiểm tra tính hợp lệ giữa LT và TH
+    // 2. Kiểm tra tính hợp lệ giữa LT và TH khi đang chọn TH cho pending LT
     if (section.isPractical) {
-      // Nếu có pending LT, chỉ hiện TH khớp với pending LT
       if (pendingTheorySection) {
         return section.classCode.startsWith(pendingTheorySection.classCode + ".");
-      }
-      const theoryClass = registeredSections.find((s) => !s.isPractical);
-      if (theoryClass && !section.classCode.startsWith(theoryClass.classCode + ".")) {
-        return false;
-      }
-    } else {
-      const practicalClass = registeredSections.find((s) => s.isPractical);
-      if (practicalClass && !practicalClass.classCode.startsWith(section.classCode + ".")) {
-        return false;
       }
     }
     return true;
   });
+}
+
+/**
+ * Tìm tất cả các ScheduledClass bị xung đột với newSection (trùng giờ hoặc trùng môn cùng loại)
+ */
+export function getConflictingScheduledClasses(
+  newSection: ClassSection,
+  scheduledClasses: ScheduledClass[]
+): ScheduledClass[] {
+  const result: ScheduledClass[] = [];
+  const addedIds = new Set<string>();
+
+  // 1. Direct time/schedule conflicts
+  for (const sc of scheduledClasses) {
+    if (checkConflict(newSection, sc.classSection)) {
+      if (!addedIds.has(sc.id)) {
+        result.push(sc);
+        addedIds.add(sc.id);
+      }
+    }
+  }
+
+  // 2. Same course + same type (ví dụ: thay thế LT cũ bằng LT mới của cùng môn)
+  for (const sc of scheduledClasses) {
+    if (
+      sc.classSection.courseCode === newSection.courseCode &&
+      sc.classSection.isPractical === newSection.isPractical
+    ) {
+      if (!addedIds.has(sc.id)) {
+        result.push(sc);
+        addedIds.add(sc.id);
+      }
+    }
+  }
+
+  // 3. Lớp đi kèm với các lớp bị trùng (LT xóa TH, TH xóa LT)
+  for (const sc of [...result]) {
+    const paired = findPairedClass(sc.classSection, scheduledClasses);
+    if (paired && !addedIds.has(paired.id)) {
+      result.push(paired);
+      addedIds.add(paired.id);
+    }
+  }
+
+  return result;
 }
 
 /**

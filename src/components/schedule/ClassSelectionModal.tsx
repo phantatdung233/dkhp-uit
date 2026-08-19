@@ -3,13 +3,14 @@
 /**
  * ClassSelectionModal Component
  * =============================
- * Modal hiển thị khi có nhiều lớp cùng giờ để user chọn
+ * Modal hiển thị khi có nhiều lớp cùng giờ để user chọn hoặc thay thế
  */
 
 import React, { useState, useEffect } from "react";
-import { Clock, User, MapPin, Calendar, Users } from "lucide-react";
+import { Clock, User, MapPin, Calendar, Users, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useScheduleStore } from "@/store/schedule-store";
+import { getConflictingScheduledClasses } from "@/store/schedule-store-helpers";
 import type { ClassSection } from "@/types";
 import { DAY_NAMES } from "@/types";
 import { cn } from "@/lib/utils";
@@ -53,8 +55,8 @@ export function ClassSelectionModal() {
             Chọn lớp học phần
           </DialogTitle>
           <DialogDescription>
-            Có {displayData.options.length} lớp học vào <strong>{DAY_NAMES[displayData.slot.dayOfWeek]}</strong>, tiết{" "}
-            <strong>{displayData.slot.period}</strong>. Vui lòng chọn một lớp:
+            Có {displayData.options.length} lựa chọn vào <strong>{DAY_NAMES[displayData.slot.dayOfWeek]}</strong>, tiết{" "}
+            <strong>{displayData.slot.period}</strong>:
           </DialogDescription>
         </DialogHeader>
 
@@ -84,23 +86,54 @@ interface ClassOptionProps {
 }
 
 function ClassOption({ section, onSelect }: ClassOptionProps) {
+  const { scheduledClasses, replaceClassWithSection, closeClassSelectionModal } = useScheduleStore();
+  const conflictingClasses = getConflictingScheduledClasses(section, scheduledClasses);
+  const hasConflict = conflictingClasses.length > 0;
+
+  const handleCardClick = () => {
+    if (hasConflict) {
+      closeClassSelectionModal();
+      const result = replaceClassWithSection(section);
+      if (result.success) {
+        const removedNames = result.removedClasses?.map((c) => c.courseName).join(", ");
+        toast.success(
+          removedNames
+            ? `Đã thay thế "${removedNames}" bằng "${section.courseName}"`
+            : `Đã thay thế bằng "${section.courseName}"`
+        );
+      }
+    } else {
+      onSelect();
+    }
+  };
+
   return (
     <div
       className={cn(
-        "p-4 rounded-lg border-2 hover:border-primary hover:bg-primary/5",
-        "cursor-pointer transition-all",
-        section.isPractical ? "border-orange-200 bg-orange-50/50" : "border-blue-200 bg-blue-50/50"
+        "p-4 rounded-lg border-2 cursor-pointer transition-all",
+        hasConflict
+          ? "border-red-300 bg-red-50/50 hover:border-red-500 hover:bg-red-100/60"
+          : section.isPractical
+          ? "border-orange-200 bg-orange-50/50 hover:border-primary hover:bg-primary/5"
+          : "border-blue-200 bg-blue-50/50 hover:border-primary hover:bg-primary/5"
       )}
-      onClick={onSelect}
+      onClick={handleCardClick}
     >
       <div className="flex justify-between items-start mb-2">
         <div>
           <h4 className="font-semibold text-gray-900">{section.courseName}</h4>
           <p className="text-sm text-gray-500">{section.classCode}</p>
         </div>
-        <Badge variant={section.isPractical ? "warning" : "info"}>
-          {section.isPractical ? "Thực hành" : "Lý thuyết"}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          {hasConflict && (
+            <Badge variant="destructive" className="text-[10px]">
+              Trùng {conflictingClasses.length} lớp
+            </Badge>
+          )}
+          <Badge variant={section.isPractical ? "warning" : "info"}>
+            {section.isPractical ? "Thực hành" : "Lý thuyết"}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm">
@@ -136,9 +169,16 @@ function ClassOption({ section, onSelect }: ClassOptionProps) {
       )}
 
       <div className="mt-3">
-        <Button size="sm" className="w-full">
-          Chọn lớp này
-        </Button>
+        {hasConflict ? (
+          <Button size="sm" className="w-full bg-red-600 hover:bg-red-700 text-white gap-1.5">
+            <RefreshCw className="h-3.5 w-3.5" />
+            Thay thế lớp bị trùng
+          </Button>
+        ) : (
+          <Button size="sm" className="w-full">
+            Chọn lớp này
+          </Button>
+        )}
       </div>
     </div>
   );
