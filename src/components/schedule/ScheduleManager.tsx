@@ -4,11 +4,11 @@
  * ScheduleManager Component
  * =========================
  * Component quản lý nhiều Lịch thời khóa biểu
- * Hỗ trợ: Tạo mới (tối đa 5), xóa, đổi tên, chuyển đổi giữa các Lịch
+ * Hỗ trợ: Tạo mới (tối đa 5), xóa, đổi tên inline trực tiếp, chuyển đổi giữa các Lịch
  */
 
-import React, { useState } from "react";
-import { Plus, Trash2, Calendar, ChevronDown } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Plus, Trash2, Calendar, ChevronDown, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,15 +28,47 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function ScheduleManager() {
-  const { schedules, currentScheduleId, addSchedule, removeSchedule, switchSchedule } = useScheduleStore();
+  const {
+    schedules,
+    currentScheduleId,
+    addSchedule,
+    removeSchedule,
+    switchSchedule,
+    renameSchedule,
+  } = useScheduleStore();
 
   const MAX_SCHEDULES = 5;
   const [isOpen, setIsOpen] = useState(false);
+
+  // State cho xóa lịch
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
+  // State cho đổi tên inline trực tiếp
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const currentSchedule = schedules.find((s) => s.id === currentScheduleId);
   const canAddMore = schedules.length < MAX_SCHEDULES;
+
+  // Auto focus & select text khi bắt đầu chỉnh sửa inline
+  useEffect(() => {
+    if (editingId) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
+    }
+  }, [editingId]);
+
+  // Reset editing state khi đóng dropdown
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      setEditingId(null);
+    }
+  };
 
   const handleAddSchedule = () => {
     if (!canAddMore) {
@@ -48,14 +80,6 @@ export function ScheduleManager() {
   };
 
   const handleDelete = (id: string) => {
-    const scheduleToDelete = schedules.find((s) => s.id === id);
-
-    // Không cho xóa Lịch 1 (default)
-    if (scheduleToDelete?.name === "Lịch 1") {
-      toast.error("Không thể xóa Lịch 1");
-      return;
-    }
-
     if (schedules.length <= 1) {
       toast.error("Phải có ít nhất 1 Lịch");
       return;
@@ -72,15 +96,24 @@ export function ScheduleManager() {
     }
   };
 
-  // Tính số môn đã đăng ký cho mỗi schedule
-  const getRegisteredCourseCount = (scheduledClasses: (typeof schedules)[0]["scheduledClasses"]) => {
-    const courseSet = new Set(scheduledClasses.map((sc) => sc.classSection.courseCode));
-    return courseSet.size;
+  const handleStartEdit = (schedule: { id: string; name: string }, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditingId(schedule.id);
+    setEditingName(schedule.name);
+  };
+
+  const handleSaveInlineEdit = (id: string) => {
+    if (editingId !== id) return;
+    const trimmed = editingName.trim();
+    if (trimmed && trimmed !== schedules.find((s) => s.id === id)?.name) {
+      renameSchedule(id, trimmed);
+    }
+    setEditingId(null);
   };
 
   return (
     <>
-      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
@@ -111,23 +144,23 @@ export function ScheduleManager() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 gap-1.5"
+                className="h-7 w-7 p-0"
                 onClick={handleAddSchedule}
                 disabled={!canAddMore}
+                title="Tạo lịch mới"
               >
-                <Plus className="h-5 w-5" />
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
           {/* Schedule List */}
           <ScrollArea className="max-h-[300px]">
-            <div className="p-1">
+            <div className="p-1 space-y-0.5">
               {schedules.map((schedule) => {
                 const isActive = schedule.id === currentScheduleId;
-                const courseCount = getRegisteredCourseCount(schedule.scheduledClasses);
-                const isDefaultSchedule = schedule.name === "Lịch 1";
-                const canDelete = !isDefaultSchedule && schedules.length > 1;
+                const isEditing = editingId === schedule.id;
+                const canDelete = schedules.length > 1;
 
                 return (
                   <div
@@ -137,64 +170,104 @@ export function ScheduleManager() {
                       isActive ? "bg-primary/10" : "hover:bg-muted/50"
                     )}
                   >
-                    <div
-                      className="flex items-center gap-2 p-2 cursor-pointer"
-                      onClick={() => handleSwitch(schedule.id)}
-                    >
-                      {/* Active Indicator */}
+                    {isEditing ? (
+                      /* Inline Edit Input */
                       <div
-                        className={cn(
-                          "w-1.5 h-8 rounded-full shrink-0 transition-colors",
-                          isActive ? "bg-primary" : "bg-transparent"
-                        )}
-                      />
+                        className="flex items-center gap-1.5 p-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleSaveInlineEdit(schedule.id);
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingId(null);
+                            }
+                          }}
+                          onBlur={() => handleSaveInlineEdit(schedule.id)}
+                          className="h-6 w-full rounded border border-primary bg-background px-1.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                          maxLength={30}
+                        />
+                      </div>
+                    ) : (
+                      /* Schedule Row */
+                      <div
+                        className="flex items-center gap-1.5 p-1.5 cursor-pointer"
+                        onClick={() => handleSwitch(schedule.id)}
+                        onDoubleClick={(e) => handleStartEdit(schedule, e)}
+                      >
+                        {/* Active Indicator */}
+                        <div
+                          className={cn(
+                            "w-1 h-6 rounded-full shrink-0 transition-colors",
+                            isActive ? "bg-primary" : "bg-transparent"
+                          )}
+                        />
 
-                      {/* Schedule Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        {/* Schedule Info */}
+                        <div className="flex-1 min-w-0">
                           <span
                             className={cn(
-                              "font-medium text-sm truncate",
-                              isActive ? "text-primary" : "text-foreground"
+                              "font-medium text-xs truncate block",
+                              isActive ? "text-primary font-semibold" : "text-foreground"
                             )}
+                            title={schedule.name}
                           >
                             {schedule.name}
                           </span>
-                          <Badge variant="secondary" className="h-5 px-1.5 text-[10px] shrink-0">
-                            {schedule.totalCredits} TC
-                          </Badge>
+                        </div>
+
+                        {/* Credits Badge */}
+                        <Badge
+                          variant="secondary"
+                          className="h-4 px-1 text-[9px] shrink-0 font-normal group-hover:hidden"
+                        >
+                          {schedule.totalCredits} TC
+                        </Badge>
+
+                        {/* Action Buttons (Hiện khi hover thay cho badge) */}
+                        <div className="hidden group-hover:flex items-center shrink-0">
+                          {/* Rename Button */}
+                          <button
+                            type="button"
+                            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                            title="Đổi tên"
+                            onClick={(e) => handleStartEdit(schedule, e)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+
+                          {/* Delete Button */}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                              title="Xóa"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteConfirmId(schedule.id);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                       </div>
-
-                      {/* Delete Button */}
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className={cn(
-                          "h-7 w-7 transition-opacity",
-                          canDelete
-                            ? "opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            : "opacity-30 cursor-not-allowed"
-                        )}
-                        disabled={!canDelete}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (canDelete) {
-                            setDeleteConfirmId(schedule.id);
-                            setIsDeleteDialogOpen(true);
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           </ScrollArea>
-
-          {/* Footer hint */}
         </DropdownMenuContent>
       </DropdownMenu>
 

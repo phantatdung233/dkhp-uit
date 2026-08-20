@@ -255,6 +255,38 @@ export function parseExcelFile(file: File): Promise<ParseResult> {
   });
 }
 
+export async function parseGoogleSheet(url: string): Promise<ParseResult> {
+  const response = await fetch("/api/fetch-sheet", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!response.ok) {
+    let errorMsg = "Không thể tải dữ liệu từ Google Sheet";
+    try {
+      const data = await response.json();
+      if (data?.error) {
+        errorMsg = data.error;
+      }
+    } catch {
+      // fallback to generic error message
+    }
+    throw new Error(errorMsg);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  try {
+    const wb = XLSX.read(arrayBuffer, { type: "array" });
+    return parseWorkbook(wb);
+  } catch (err) {
+    throw new Error(`Lỗi phân tích dữ liệu bảng tính: ${err instanceof Error ? err.message : "Không đúng định dạng"}`);
+  }
+}
+
+
 /**
  * Parse an array of row objects (with named keys from readSheetRows) into ClassSections.
  */

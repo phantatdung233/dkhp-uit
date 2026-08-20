@@ -4,15 +4,25 @@
  * FileUpload Component
  * ====================
  * Component upload file Excel hoặc nhập link Google Sheet
- * Hỗ trợ chọn file mẫu từ server
  */
 
 import React, { useState, useCallback, useRef } from "react";
-import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, Loader2, X, FileCheck, Download } from "lucide-react";
+import {
+  Upload,
+  FileSpreadsheet,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+  X,
+  Link2,
+  Download,
+  Info,
+  ExternalLink,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
@@ -23,28 +33,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-import { parseExcelFile, validateParseResult } from "@/lib/parser";
+import { parseExcelFile, parseGoogleSheet, validateParseResult } from "@/lib/parser";
 import { useScheduleStore } from "@/store/schedule-store";
 import type { ParseResult } from "@/types";
 import { cn } from "@/lib/utils";
 
-// Danh sách file mẫu có sẵn
-const SAMPLE_FILES = [
-  {
-    id: "sample-1",
-    name: "Lịch 2025-2026",
-    description: "File lịch TKB của năm 2025-2026",
-    path: "/samples/sample-2025-2026.xlsm",
-  },
-];
-
 export function FileUpload() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState("");
   const [result, setResult] = useState<ParseResult | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
-  const [showSamples, setShowSamples] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { importData, allSections } = useScheduleStore();
@@ -54,7 +54,6 @@ export function FileUpload() {
     setIsOpen(false);
     setResult(null);
     setWarnings([]);
-    setShowSamples(false);
   };
 
   // Handle file selection
@@ -86,6 +85,48 @@ export function FileUpload() {
           {
             row: 0,
             message: error instanceof Error ? error.message : "Unknown error",
+          },
+        ],
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Process Google Sheet URL
+  const handleFetchSheet = async () => {
+    const trimmed = sheetUrl.trim();
+    if (!trimmed) {
+      toast.error("Vui lòng nhập đường link Google Sheet");
+      return;
+    }
+
+    setIsLoading(true);
+    setResult(null);
+    setWarnings([]);
+
+    try {
+      const parseResult = await parseGoogleSheet(trimmed);
+      setResult(parseResult);
+      setWarnings(validateParseResult(parseResult));
+      if (parseResult.success) {
+        toast.success(`Đã đọc thành công ${parseResult.sections.length} lớp học phần`);
+      } else {
+        toast.error("Có lỗi khi phân tích dữ liệu Google Sheet");
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Lỗi khi tải Google Sheet";
+      toast.error(msg);
+      setResult({
+        success: false,
+        sections: [],
+        courses: [],
+        totalRows: 0,
+        errorRows: 0,
+        errors: [
+          {
+            row: 0,
+            message: msg,
           },
         ],
       });
@@ -131,31 +172,6 @@ export function FileUpload() {
     }
   }, []);
 
-  // Load sample file
-  const handleLoadSample = async (samplePath: string) => {
-    setIsLoading(true);
-    setResult(null);
-    setWarnings([]);
-
-    try {
-      const response = await fetch(samplePath);
-      if (!response.ok) {
-        throw new Error("Không thể tải file mẫu");
-      }
-
-      const blob = await response.blob();
-      const file = new File([blob], samplePath.split("/").pop() || "sample.xlsx", {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      });
-
-      await processFile(file);
-      setShowSamples(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Lỗi khi tải file mẫu");
-      setIsLoading(false);
-    }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -174,25 +190,29 @@ export function FileUpload() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
-            {result ? "Kết quả nhập TKB" : showSamples ? "Chọn file mẫu" : "Nhập dữ liệu TKB"}
+            {result ? "Kết quả nhập TKB" : "Nhập dữ liệu TKB"}
           </DialogTitle>
           <DialogDescription>
-            {showSamples ? "Chọn một file lịch mẫu để sử dụng" : "Upload file Excel hoặc chọn file mẫu có sẵn"}
+            {result
+              ? "Kiểm tra thông tin trước khi áp dụng vào thời khóa biểu"
+              : "Tải file Excel (.xlsx, .xlsm, .xls, .csv) hoặc nhập link GG Sheet"}
           </DialogDescription>
         </DialogHeader>
 
-        {!result && !showSamples ? (
-          <div className="py-4 space-y-4">
+        {!result ? (
+          <div className="py-2 space-y-4">
+            {/* File Dropzone */}
             <div
               className={cn(
-                "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-                dragActive ? "border-primary bg-primary/5" : "border-gray-200 hover:border-gray-300",
+                "border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer",
+                dragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 bg-muted/20",
                 isLoading && "opacity-50 pointer-events-none"
               )}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
             >
               <input
                 ref={fileInputRef}
@@ -202,103 +222,110 @@ export function FileUpload() {
                 className="hidden"
               />
 
-              <FileSpreadsheet className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-              <p className="text-gray-600 mb-2">Thả file vào đây</p>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang xử lý...
-                  </>
-                ) : (
-                  "Chọn file"
-                )}
-              </Button>
-              <p className="text-xs text-gray-400 mt-2">Hỗ trợ: .xlsx, .xlsm, .xls, .csv</p>
-              <p className="text-xs text-blue-600 mt-3">
-                <a
-                  href="https://daa.uit.edu.vn/thongbaochinhquy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-blue-800"
-                >
-                  Lấy file tại đây
-                </a>
+              <FileSpreadsheet className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+              <p className="text-sm font-medium text-foreground mb-1">
+                Kéo thả file vào đây hoặc <span className="text-primary hover:underline">chọn file</span>
               </p>
+              <p className="text-xs text-muted-foreground">Hỗ trợ: .xlsx, .xlsm, .xls, .csv</p>
             </div>
 
-            {/* Sample files section */}
+            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+                <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">Hoặc</span>
+                <span className="bg-background px-2 text-muted-foreground font-medium">Hoặc</span>
               </div>
             </div>
 
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={() => setShowSamples(true)}
-              disabled={isLoading}
-            >
-              <FileCheck className="h-4 w-4" />
-              Chọn file mẫu có sẵn
-            </Button>
-          </div>
-        ) : !result && showSamples ? (
-          <div className="py-4">
-            <ScrollArea className="max-h-[400px]">
-              <div className="space-y-2 pr-4">
-                {SAMPLE_FILES.map((sample) => (
-                  <button
-                    key={sample.id}
-                    onClick={() => handleLoadSample(sample.path)}
+            {/* Google Sheet URL Section */}
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="https://docs.google.com/spreadsheets/d/1dQbqHh..."
+                    value={sheetUrl}
+                    onChange={(e) => setSheetUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isLoading && sheetUrl.trim()) {
+                        e.preventDefault();
+                        handleFetchSheet();
+                      }
+                    }}
                     disabled={isLoading}
-                    className={cn(
-                      "w-full text-left p-4 rounded-lg border-2 transition-all",
-                      "hover:border-primary hover:bg-primary/5",
-                      "disabled:opacity-50 disabled:cursor-not-allowed",
-                      "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <FileSpreadsheet className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm">{sample.name}</h4>
-                        <p className="text-xs text-gray-500 mt-1">{sample.description}</p>
-                      </div>
-                      <Download className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
-                    </div>
-                  </button>
-                ))}
+                    className="pl-9 pr-8"
+                  />
+                  {sheetUrl && !isLoading && (
+                    <button
+                      type="button"
+                      onClick={() => setSheetUrl("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleFetchSheet}
+                  disabled={isLoading || !sheetUrl.trim()}
+                  className="gap-2 shrink-0"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+
+                    </>
+                  )}
+                </Button>
               </div>
-            </ScrollArea>
+
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/40 p-2.5 rounded-md border border-border/50">
+                <Info className="h-4 w-4 text-primary shrink-0" />
+                <span>
+                  Lấy link Google Sheet tại đây:{" "}
+                  <a
+                    href="https://portal.uit.edu.vn/bai-viet?q=l%E1%BB%8Bch+%C4%90KHP"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary font-medium hover:underline inline-flex items-center gap-1"
+                  >
+                    Cổng thông tin UIT
+                    <ExternalLink className="h-3 w-3 inline" />
+                  </a>
+                </span>
+              </div>
+            </div>
           </div>
-        ) : result ? (
+        ) : (
           <div className="py-4 space-y-3">
             {/* Success/Error Summary */}
             <div
               className={cn(
                 "rounded-lg p-4 border",
-                result.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+                result.success ? "bg-green-50/80 border-green-200 dark:bg-green-950/30 dark:border-green-900" : "bg-red-50/80 border-red-200 dark:bg-red-950/30 dark:border-red-900"
               )}
             >
               <div className="flex items-start gap-3">
                 {result.success ? (
-                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
                 ) : (
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
                 )}
 
-                <div className="flex-1">
-                  <h4 className={cn("font-medium", result.success ? "text-green-800" : "text-red-800")}>
-                    {result.success ? "Đọc file thành công!" : "Có lỗi xảy ra"}
+                <div className="flex-1 min-w-0">
+                  <h4 className={cn("font-medium", result.success ? "text-green-800 dark:text-green-300" : "text-red-800 dark:text-red-300")}>
+                    {result.success ? "Đọc dữ liệu thành công!" : "Có lỗi xảy ra khi đọc dữ liệu"}
                   </h4>
 
                   {result.success ? (
-                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-green-700">
+                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-green-700 dark:text-green-400">
                       <p>
                         • Lớp học: <span className="font-bold">{result.sections.length}</span> lớp
                       </p>
@@ -306,13 +333,13 @@ export function FileUpload() {
                         • Môn học: <span className="font-bold">{result.courses.length}</span> môn
                       </p>
                       {result.errorRows > 0 && (
-                        <p className="text-amber-700">
-                          • Lỗi: <span className="font-bold">{result.errorRows}</span> dòng
+                        <p className="text-amber-700 dark:text-amber-400">
+                          • Lỗi bỏ qua: <span className="font-bold">{result.errorRows}</span> dòng
                         </p>
                       )}
                     </div>
                   ) : (
-                    <ul className="mt-2 space-y-1 text-sm text-red-700">
+                    <ul className="mt-2 space-y-1 text-sm text-red-700 dark:text-red-400">
                       {result.errors.map((error, i) => (
                         <li key={i}>
                           {error.row > 0 && `Dòng ${error.row}: `}
@@ -327,14 +354,14 @@ export function FileUpload() {
 
             {/* Warnings - Separate Box with Scroll */}
             {result.success && warnings.length > 0 && (
-              <div className="rounded-lg border border-yellow-200 bg-yellow-50/50 overflow-hidden">
-                <div className="px-4 py-2 border-b border-yellow-200 bg-yellow-100/50 flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-yellow-700" />
-                  <p className="text-sm font-bold text-yellow-800">Cảnh báo ({warnings.length})</p>
+              <div className="rounded-lg border border-yellow-200 bg-yellow-50/50 dark:border-yellow-900/50 dark:bg-yellow-950/20 overflow-hidden">
+                <div className="px-4 py-2 border-b border-yellow-200 dark:border-yellow-900/50 bg-yellow-100/50 dark:bg-yellow-900/30 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
+                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">Cảnh báo ({warnings.length})</p>
                 </div>
                 <ScrollArea className="h-[150px]">
                   <div className="px-4 py-2">
-                    <ul className="text-sm text-yellow-700 space-y-1.5 pb-2">
+                    <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1.5 pb-2">
                       {warnings.map((warning, i) => (
                         <li key={i} className="flex gap-2">
                           <span className="text-yellow-500 shrink-0">•</span>
@@ -347,28 +374,24 @@ export function FileUpload() {
               </div>
             )}
           </div>
-        ) : null}
+        )}
 
         {/* Actions */}
         <div className="flex justify-between items-center pt-4 border-t">
-          <p className="text-xs text-gray-500">{allSections.length > 0 && <>Hiện tại: {allSections.length} lớp</>}</p>
+          <p className="text-xs text-muted-foreground">{allSections.length > 0 && <>Hiện tại: {allSections.length} lớp</>}</p>
           <div className="flex gap-2">
             {result ? (
-              <Button variant="outline" onClick={() => setResult(null)}>
-                Quay lại
-              </Button>
-            ) : showSamples ? (
-              <Button variant="outline" onClick={() => setShowSamples(false)}>
+              <Button variant="outline" onClick={() => setResult(null)} disabled={isLoading}>
                 Quay lại
               </Button>
             ) : (
-              <Button variant="outline" onClick={handleClose}>
-                Hủy
+              <Button variant="outline" onClick={handleClose} disabled={isLoading}>
+                Đóng
               </Button>
             )}
             {result && (
-              <Button onClick={handleImport} disabled={!result.success || result.sections.length === 0}>
-                Nhập
+              <Button onClick={handleImport} disabled={!result.success || result.sections.length === 0 || isLoading}>
+                Nhập vào lịch
               </Button>
             )}
           </div>
