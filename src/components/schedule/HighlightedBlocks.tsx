@@ -3,8 +3,11 @@
 /**
  * HighlightedBlocks Components
  * ============================
- * Components hiển thị các block được highlight khi chọn môn học từ sidebar
- * Hiển thị đè lên trên lớp đã chọn khi có trùng lịch và hỗ trợ thay thế 1-chạm
+ * Components hiển thị các block được highlight khi chọn môn học từ sidebar.
+ * Hiển thị đè lên trên lớp đã chọn khi có trùng lịch và hỗ trợ thay thế 1-chạm.
+ *
+ * Xử lý overlap: Khi nhiều block lựa chọn trùng tiết cùng ngày, chúng được
+ * chia cột ngang (giống Google Calendar) để tất cả đều hiển thị và tương tác được.
  */
 
 import React from "react";
@@ -18,6 +21,121 @@ import { cn } from "@/lib/utils";
 // Constants
 const DAYS = [2, 3, 4, 5, 6, 7]; // Thứ 2 - Thứ 7
 const CELL_HEIGHT = 48; // px
+
+// ============ Overlap Layout for Highlight Blocks ============
+
+interface BlockData {
+  key: string;
+  dayOfWeek: number;
+  startPeriod: number;
+  periodCount: number;
+  hasConflict: boolean;
+  sections: ClassSection[];
+}
+
+interface BlockLayout {
+  /** Which column this block occupies (0-based) */
+  column: number;
+  /** Total columns in this overlap group */
+  totalColumns: number;
+}
+
+/**
+ * Compute column layout for overlapping highlight blocks on the same day.
+ * Uses greedy interval colouring + union-find, identical to the scheduled
+ * classes algorithm in ScheduledClassesOverlay.
+ */
+function computeBlockOverlapLayout(blocks: BlockData[]): Map<string, BlockLayout> {
+  const result = new Map<string, BlockLayout>();
+  if (blocks.length === 0) return result;
+
+  // Group by dayOfWeek
+  const byDay = new Map<number, BlockData[]>();
+  for (const b of blocks) {
+    if (!byDay.has(b.dayOfWeek)) byDay.set(b.dayOfWeek, []);
+    byDay.get(b.dayOfWeek)!.push(b);
+  }
+
+  for (const [, dayBlocks] of byDay) {
+    if (dayBlocks.length === 1) {
+      result.set(dayBlocks[0].key, { column: 0, totalColumns: 1 });
+      continue;
+    }
+
+    // Sort: earlier start first, then longer duration first
+    const sorted = [...dayBlocks].sort((a, b) => {
+      const diff = a.startPeriod - b.startPeriod;
+      if (diff !== 0) return diff;
+      return b.periodCount - a.periodCount;
+    });
+
+    // Greedy column assignment
+    const columnEnds: number[] = [];
+    const assignments: { block: BlockData; col: number }[] = [];
+
+    for (const b of sorted) {
+      const start = b.startPeriod;
+      const end = start + b.periodCount;
+
+      let assignedCol = -1;
+      for (let c = 0; c < columnEnds.length; c++) {
+        if (columnEnds[c] <= start) {
+          assignedCol = c;
+          break;
+        }
+      }
+
+      if (assignedCol === -1) {
+        assignedCol = columnEnds.length;
+        columnEnds.push(end);
+      } else {
+        columnEnds[assignedCol] = end;
+      }
+
+      assignments.push({ block: b, col: assignedCol });
+    }
+
+    // Union-Find to group overlapping blocks
+    const parent = new Map<string, string>();
+    function find(id: string): string {
+      if (!parent.has(id)) parent.set(id, id);
+      if (parent.get(id) !== id) parent.set(id, find(parent.get(id)!));
+      return parent.get(id)!;
+    }
+    function union(a: string, b: string) {
+      const ra = find(a), rb = find(b);
+      if (ra !== rb) parent.set(ra, rb);
+    }
+
+    for (let i = 0; i < assignments.length; i++) {
+      for (let j = i + 1; j < assignments.length; j++) {
+        const ai = assignments[i].block;
+        const aj = assignments[j].block;
+        const endI = ai.startPeriod + ai.periodCount;
+        const endJ = aj.startPeriod + aj.periodCount;
+        if (ai.startPeriod < endJ && aj.startPeriod < endI) {
+          union(ai.key, aj.key);
+        }
+      }
+    }
+
+    const groupMaxCol = new Map<string, number>();
+    for (const a of assignments) {
+      const root = find(a.block.key);
+      groupMaxCol.set(root, Math.max(groupMaxCol.get(root) || 0, a.col + 1));
+    }
+
+    for (const a of assignments) {
+      const root = find(a.block.key);
+      result.set(a.block.key, {
+        column: a.col,
+        totalColumns: groupMaxCol.get(root)!,
+      });
+    }
+  }
+
+  return result;
+}
 
 // ============ Highlighted Blocks Overlay ============
 
@@ -34,10 +152,7 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
 
   // Group sections by their exact slot range (day, start, count, hasConflict)
   // This avoids overlapping blocks and cleanly separates available vs conflicting blocks
-  const blocksByRange = new Map<
-    string,
-    { dayOfWeek: number; startPeriod: number; periodCount: number; hasConflict: boolean; sections: ClassSection[] }
-  >();
+  const blocksByRange = new Map<string, BlockData>();
 
   highlightedSlots.forEach((slot) => {
     const { dayOfWeek, period } = slot.slot;
@@ -50,6 +165,7 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
 
       if (!blocksByRange.has(key)) {
         blocksByRange.set(key, {
+          key,
           dayOfWeek,
           startPeriod: section.startPeriod,
           periodCount: section.periodCount,
@@ -70,6 +186,7 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
 
       if (!blocksByRange.has(key)) {
         blocksByRange.set(key, {
+          key,
           dayOfWeek,
           startPeriod: section.startPeriod,
           periodCount: section.periodCount,
@@ -85,25 +202,33 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
     });
   });
 
+  // Compute overlap layout for all blocks
+  const allBlocks = Array.from(blocksByRange.values());
+  const layoutMap = computeBlockOverlapLayout(allBlocks);
+
   // Render blocks
   const blockElements: JSX.Element[] = [];
   const isClickMode = clickSelectedCourse !== null;
 
-  blocksByRange.forEach((block, key) => {
+  blocksByRange.forEach((block) => {
     const desktopDayIndex = DAYS.indexOf(block.dayOfWeek);
     const mobileDayIndex = visibleDays.indexOf(block.dayOfWeek);
 
     if (desktopDayIndex === -1) return;
 
+    const layout = layoutMap.get(block.key) || { column: 0, totalColumns: 1 };
+
     blockElements.push(
       <ClickableHighlightBlock
-        key={key}
+        key={block.key}
         block={block}
         dayIndex={desktopDayIndex}
         mobileDayIndex={mobileDayIndex}
         mobileVisible={mobileDayIndex !== -1}
         mobileDaysCount={visibleDays.length}
         isClickMode={isClickMode}
+        layoutColumn={layout.column}
+        layoutTotalColumns={layout.totalColumns}
       />
     );
   });
@@ -114,18 +239,14 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
 // ============ Clickable Highlight Block ============
 
 interface ClickableHighlightBlockProps {
-  block: {
-    dayOfWeek: number;
-    startPeriod: number;
-    periodCount: number;
-    hasConflict: boolean;
-    sections: ClassSection[];
-  };
+  block: BlockData;
   dayIndex: number;
   mobileDayIndex: number;
   mobileVisible: boolean;
   mobileDaysCount: number;
   isClickMode: boolean;
+  layoutColumn: number;
+  layoutTotalColumns: number;
 }
 
 function ClickableHighlightBlock({
@@ -135,16 +256,20 @@ function ClickableHighlightBlock({
   mobileVisible,
   mobileDaysCount,
   isClickMode,
+  layoutColumn,
+  layoutTotalColumns,
 }: ClickableHighlightBlockProps) {
   const { addClassToSchedule, clickSelectedLecturer, replaceClassWithSection } = useScheduleStore();
 
-  // Desktop positioning
-  const desktopDayWidth = `calc((100%) / ${DAYS.length})`;
-  const desktopLeft = `calc(${dayIndex} * ${desktopDayWidth})`;
+  // Desktop positioning — divide day column into sub-columns for overlapping blocks
+  const desktopDayWidth = 100 / DAYS.length; // percent
+  const desktopSubWidth = desktopDayWidth / layoutTotalColumns;
+  const desktopLeft = dayIndex * desktopDayWidth + layoutColumn * desktopSubWidth;
 
-  // Mobile positioning
-  const mobileDayWidth = `calc((100%) / ${mobileDaysCount})`;
-  const mobileLeft = `calc(${mobileDayIndex} * ${mobileDayWidth})`;
+  // Mobile positioning — same approach
+  const mobileDayWidth = 100 / mobileDaysCount;
+  const mobileSubWidth = mobileDayWidth / layoutTotalColumns;
+  const mobileLeft = mobileDayIndex * mobileDayWidth + layoutColumn * mobileSubWidth;
 
   const top = (block.startPeriod - 1) * CELL_HEIGHT;
   const height = block.periodCount * CELL_HEIGHT;
@@ -214,9 +339,9 @@ function ClickableHighlightBlock({
               : "z-20 border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
         )}
         style={{
-          left: desktopLeft,
+          left: `${desktopLeft}%`,
           top: top + 2,
-          width: desktopDayWidth,
+          width: `${desktopSubWidth}%`,
           height: height - 4,
         }}
       >
@@ -311,9 +436,9 @@ function ClickableHighlightBlock({
                 : "z-20 border-green-400 bg-green-100/50 animate-pulse pointer-events-none"
           )}
           style={{
-            left: mobileLeft,
+            left: `${mobileLeft}%`,
             top: top + 2,
-            width: mobileDayWidth,
+            width: `${mobileSubWidth}%`,
             height: height - 4,
           }}
         >
@@ -373,3 +498,4 @@ function ClickableHighlightBlock({
 }
 
 export default HighlightedBlocksOverlay;
+

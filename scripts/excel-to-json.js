@@ -32,34 +32,26 @@ const path = require("path");
 // Constants
 // ============================================================================
 
-/** Row index (0-based) where the header is located in the Excel file */
-const HEADER_ROW_INDEX = 7; // Row 8 in Excel (1-based)
+/** Data starts at row 9 in Excel (1-based), i.e., 0-based row index 8 */
+const DATA_START_ROW = 8;
 
-/** Column name aliases for header matching across LT and TH sheets */
-const COLUMN_ALIASES = {
-  mamh: ["MÃ MH"],
-  malop: ["MÃ LỚP"],
-  tenmh: ["TÊN MÔN HỌC"],
-  magv: ["MÃ GIẢNG VIÊN", "MÃ GV"],
-  giangvien: ["TÊN GIẢNG VIÊN", "TÊN TRỢ GIẢNG"],
-  siso: ["SĨ SỐ"],
-  sotc: ["SỐ TC", "TỐ TC", "TC"],
-  thuchanh: ["THỰC HÀNH", "TH"],
-  htgd: ["HTGD"],
-  thu: ["THỨ"],
-  tiet: ["TIẾT"],
-  cachTuan: ["CÁCH TUẦN"],
-  phongHoc: ["PHÒNG HỌC"],
-  khoaHoc: ["KHOÁ HỌC", "KHOA HỌC"],
-  hocKy: ["HỌC KỲ"],
-  namHoc: ["NĂM HỌC"],
-  heDT: ["HỆ ĐT"],
-  khoaQL: ["KHOA QL"],
-  nbd: ["NBD", "NGÀY BẮT ĐẦU"],
-  nkt: ["NKT", "NGÀY KẾT THÚC"],
-  ghiChu: ["GHI CHÚ", "GHICHU"],
-  ngonNgu: ["NGON NGU", "NGÔN NGỮ"],
-  daDK: ["Đã ĐK", "ĐÃ ĐK"],
+/**
+ * Fixed column indices (0-based) for the required fields.
+ * Column A = 0, B = 1, C = 2, ..., T = 19, U = 20
+ */
+const COL = {
+  courseCode: 1,   // B — Mã môn học
+  classCode: 2,    // C — Mã lớp
+  courseName: 3,   // D — Tên môn học
+  lecturer: 5,     // F — Tên giảng viên
+  maxStudents: 6,  // G — Sĩ số
+  credits: 7,      // H — Số tín chỉ
+  day: 10,         // K — Thứ
+  periods: 11,     // L — Tiết
+  weekType: 12,    // M — Cách mấy tuần
+  room: 13,        // N — Phòng học
+  startDate: 19,   // T — Ngày bắt đầu
+  endDate: 20,     // U — Ngày kết thúc
 };
 
 /** HTGD values that indicate no fixed schedule (tghoc = null) */
@@ -89,38 +81,6 @@ function getNumber(value) {
   return isNaN(n) ? null : n;
 }
 
-/**
- * Find a column value from a row using alias matching.
- * Tries exact match first, then substring match.
- * @param {Object} row - The row object with uppercase keys
- * @param {string} aliasKey - Key from COLUMN_ALIASES
- * @returns {*} The value found, or undefined
- */
-function getCol(row, aliasKey) {
-  const aliases = COLUMN_ALIASES[aliasKey];
-  if (!aliases) return undefined;
-
-  const upperAliases = aliases.map((a) => a.toUpperCase());
-
-  // Exact match first
-  for (const alias of upperAliases) {
-    if (row[alias] !== undefined) return row[alias];
-  }
-
-  // Substring match (fallback for slight header variations)
-  const keys = Object.keys(row);
-  for (const alias of upperAliases) {
-    const found = keys.find(
-      (k) =>
-        k.includes(alias) &&
-        // Avoid TH matching THỨ
-        !(alias === "TH" && k === "THỨ")
-    );
-    if (found !== undefined) return row[found];
-  }
-
-  return undefined;
-}
 
 /**
  * Parse SĨ SỐ format: "40(0)" → { siso: 40, dadk: 0 }
@@ -453,36 +413,35 @@ function inferMalopLythuyet(malop, ltClassCodes) {
 
 /**
  * Parse a single sheet into an array of course objects.
+ * Reads by fixed column position (not header name).
  *
  * @param {XLSX.WorkSheet} sheet - The worksheet to parse
  * @param {boolean} isPracticalSheet - Whether this is the TKB TH sheet
  * @returns {Object[]} Array of parsed course objects
  */
 function parseSheet(sheet, isPracticalSheet) {
-  const json = XLSX.utils.sheet_to_json(sheet, {
+  // Read as 2D array (array of arrays)
+  const aoa = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
     defval: "",
-    range: HEADER_ROW_INDEX,
+    blankrows: false,
   });
 
-  if (!json.length) return [];
-
-  // Normalize all keys to uppercase for consistent matching
-  const normalized = json.map((row) =>
-    Object.fromEntries(
-      Object.entries(row).map(([k, v]) => [k.trim().toUpperCase(), v])
-    )
-  );
+  if (!aoa.length) return [];
 
   const courses = [];
   const skipped = [];
 
-  for (let i = 0; i < normalized.length; i++) {
-    const row = normalized[i];
-    const rowNum = HEADER_ROW_INDEX + 2 + i; // Excel row number (1-based)
+  // Data starts from DATA_START_ROW (0-based index 8 = Excel row 9)
+  for (let i = DATA_START_ROW; i < aoa.length; i++) {
+    const rawRow = aoa[i];
+    if (!rawRow || !Array.isArray(rawRow)) continue;
+
+    const rowNum = i + 1; // Excel row number (1-based)
 
     try {
-      const malop = getString(getCol(row, "malop"));
-      const tenmh = getString(getCol(row, "tenmh"));
+      const malop = getString(rawRow[COL.classCode]);
+      const tenmh = getString(rawRow[COL.courseName]);
 
       // Skip empty rows
       if (!malop && !tenmh) continue;
@@ -492,27 +451,22 @@ function parseSheet(sheet, isPracticalSheet) {
         continue;
       }
 
-      const mamh = getString(getCol(row, "mamh")) || malop.split(".")[0];
-      const { siso, dadk } = parseSiSo(getCol(row, "siso"));
-      const sotc = getNumber(getCol(row, "sotc"));
-      const thuchanh = isPracticalSheet
-        ? 1
-        : getNumber(getCol(row, "thuchanh")) === 1
-          ? 1
-          : 0;
+      const mamh = getString(rawRow[COL.courseCode]) || malop.split(".")[0];
+      const { siso, dadk } = parseSiSo(rawRow[COL.maxStudents]);
+      const sotc = getNumber(rawRow[COL.credits]);
+      const thuchanh = isPracticalSheet ? 1 : 0;
 
-      const thu = getCol(row, "thu");
-      const tiet = getCol(row, "tiet");
-      const cachTuan = getCol(row, "cachTuan");
-      const htgd = getCol(row, "htgd");
+      const thu = rawRow[COL.day];
+      const tiet = rawRow[COL.periods];
+      const cachTuan = rawRow[COL.weekType];
 
-      const tghoc = buildTghoc(thu, tiet, cachTuan, htgd);
+      const tghoc = buildTghoc(thu, tiet, cachTuan, null);
 
-      const giangvienStr = getString(getCol(row, "giangvien"));
+      const giangvienStr = getString(rawRow[COL.lecturer]);
       const giangvien = giangvienStr || null;
 
-      const nbd = formatDate(getCol(row, "nbd"));
-      const nkt = formatDate(getCol(row, "nkt"));
+      const nbd = formatDate(rawRow[COL.startDate]);
+      const nkt = formatDate(rawRow[COL.endDate]);
 
       courses.push({
         malop,
@@ -529,7 +483,6 @@ function parseSheet(sheet, isPracticalSheet) {
         tghoc,
         // Extra metadata (not in JSON output but useful for processing)
         _isPracticalSheet: isPracticalSheet,
-        _htgd: getString(htgd),
         _rowNum: rowNum,
       });
     } catch (err) {
@@ -552,6 +505,9 @@ function parseSheet(sheet, isPracticalSheet) {
 
 /**
  * Convert an Excel workbook to JSON format.
+ * - Table 1 (first sheet) is always TKB LT (Lý thuyết)
+ * - Table 2 (second sheet) is always TKB TH (Thực hành)
+ * - Any additional sheets are ignored
  *
  * @param {string} inputPath - Path to the Excel file
  * @returns {Object} The JSON output object
@@ -565,11 +521,13 @@ function convertExcelToJson(inputPath) {
   const allCourses = [];
   const ltClassCodes = new Set();
 
-  // Process each sheet
-  for (const sheetName of wb.SheetNames) {
+  // Only process the first 2 sheets: Sheet 1 = LT, Sheet 2 = TH
+  const sheetsToProcess = wb.SheetNames.slice(0, 2);
+
+  for (let sheetIdx = 0; sheetIdx < sheetsToProcess.length; sheetIdx++) {
+    const sheetName = sheetsToProcess[sheetIdx];
     const sheet = wb.Sheets[sheetName];
-    const isPracticalSheet = sheetName.toUpperCase().includes("TKB TH") ||
-                              sheetName.toUpperCase().includes("TH");
+    const isPracticalSheet = sheetIdx === 1; // Table 2 = TH
 
     console.log(`\n📄 Xử lý sheet: "${sheetName}" (${isPracticalSheet ? "Thực hành" : "Lý thuyết"})`);
 
@@ -597,7 +555,7 @@ function convertExcelToJson(inputPath) {
 
   // Remove internal metadata fields
   const cleanCourses = allCourses.map((c) => {
-    const { _isPracticalSheet, _htgd, _rowNum, ...clean } = c;
+    const { _isPracticalSheet, _rowNum, ...clean } = c;
     return clean;
   });
 
