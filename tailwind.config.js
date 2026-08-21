@@ -2,9 +2,18 @@
 module.exports = {
   darkMode: ["class"],
   content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  safelist: [
+    {
+      pattern: /bg-(emerald|teal|green|cyan|sky|blue|indigo|purple|rose|amber|lime)-(100|200|300)/,
+    },
+    {
+      pattern: /border-(emerald|teal|green|cyan|sky|blue|indigo|purple|rose|amber|lime)-(200|300|400)/,
+    },
+    {
+      pattern: /text-(emerald|teal|green|cyan|sky|blue|indigo|purple|rose|amber|lime)-(900|950)/,
+    },
   ],
   theme: {
     container: {

@@ -80,44 +80,56 @@ export function FlexibleClassesList({ classes, onRemove, onClassClick }: Flexibl
                 e.stopPropagation();
                 onRemove(scheduledClass.id);
               }}
-              className="absolute top-1 right-1 p-0.5 rounded-full bg-white/80 hover:bg-white opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              className="absolute top-1 right-1 p-0.5 rounded-full bg-background/80 hover:bg-destructive hover:text-destructive-foreground text-muted-foreground border border-border/50 opacity-0 group-hover:opacity-100 transition-all z-20 shadow-2xs"
+              title="Xóa lớp học"
             >
-              <X className="h-3 w-3 text-gray-600" />
+              <X className="h-3 w-3" />
             </button>
 
             {/* Content */}
-            <div className="h-full flex flex-col">
-              <p className="font-medium text-[11px] mt-0.5">{section.classCode}</p>
-              <h4 className="font-bold leading-tight text-[13px] line-clamp-1">{section.courseName}</h4>
-
-              <div className="mt-1 space-y-0.5">
-                <div className="flex items-center gap-1 text-[12px] opacity-70">
-                  <User className="h-3 w-3 shrink-0" />
-                  <span className="font-bold truncate">{section.lecturer}</span>
-                </div>
-                {section.room && (
-                  <div className="flex items-center gap-1 text-[12px] opacity-70">
-                    <MapPin className="h-3 w-3 shrink-0" />
-                    <span className="font-bold truncate">{section.room}</span>
-                  </div>
-                )}
-                {(section.startDate || section.endDate) && (
-                  <div className="flex items-center gap-1 text-[12px] opacity-70 border-t border-black/5 pt-0.5 mt-0.5">
-                    <Calendar className="h-3 w-3 shrink-0" />
-                    <span className="font-bold truncate">
-                      {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
-                      {section.endDate ? format(section.endDate, "dd/MM") : "?"}
-                    </span>
-                  </div>
-                )}
+            <div className="h-full flex flex-col justify-between overflow-hidden">
+              <div>
+                <p className="font-bold font-mono text-[10px] truncate opacity-90 pr-4">{section.classCode}</p>
+                <h4 className="font-bold leading-snug text-[12px] sm:text-[12.5px] mt-0.5 line-clamp-1">
+                  {section.courseName}
+                </h4>
               </div>
 
-              <Badge
-                variant={section.isPractical ? "warning" : "info"}
-                className="absolute bottom-1 right-1 text-[8px] px-1 h-3.5 leading-none"
-              >
-                {section.isPractical ? "TH" : "LT"}
-              </Badge>
+              <div className="mt-1 space-y-0.5 text-[10.5px] sm:text-[11px] leading-tight">
+                <div className="flex items-center gap-1 opacity-80">
+                  <User className="h-3 w-3 shrink-0 opacity-70" />
+                  <span className="font-semibold truncate">{section.lecturer || "Chưa có GV"}</span>
+                </div>
+                {section.room && (
+                  <div className="flex items-center gap-1 opacity-80">
+                    <MapPin className="h-3 w-3 shrink-0 opacity-70" />
+                    <span className="font-semibold truncate">{section.room}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-1 border-t border-current/10 pt-0.5 mt-0.5">
+                  {(section.startDate || section.endDate) ? (
+                    <div className="flex items-center gap-1 opacity-70 text-[9.5px] min-w-0">
+                      <Calendar className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                      <span className="truncate">
+                        {section.startDate ? format(section.startDate, "dd/MM") : "?"} -{" "}
+                        {section.endDate ? format(section.endDate, "dd/MM") : "?"}
+                      </span>
+                    </div>
+                  ) : (
+                    <span />
+                  )}
+                  <span
+                    className={cn(
+                      "text-[8px] font-bold px-1 py-0.2 rounded shrink-0 leading-tight border transition-colors ml-auto",
+                      section.isPractical
+                        ? "bg-amber-200 text-amber-950 border-amber-400"
+                        : "bg-emerald-200 text-emerald-950 border-emerald-400"
+                    )}
+                  >
+                    {section.isPractical ? "TH" : "LT"}
+                  </span>
+                </div>
+              </div>
             </div>
           </>
         );
@@ -130,8 +142,8 @@ export function FlexibleClassesList({ classes, onRemove, onClassClick }: Flexibl
                 <TooltipTrigger asChild>
                   <div
                     className={cn(
-                      "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative",
-                      "shadow-sm hover:shadow-md transition-shadow cursor-default",
+                      "h-full min-h-[70px] rounded-md border p-1.5 overflow-hidden relative",
+                      "shadow-2xs hover:shadow-sm hover:brightness-[1.02] dark:hover:brightness-110 transition-all cursor-default",
                       colorClass
                     )}
                   >
@@ -149,8 +161,8 @@ export function FlexibleClassesList({ classes, onRemove, onClassClick }: Flexibl
               <div
                 onClick={handleFlexibleCardClick}
                 className={cn(
-                  "h-full min-h-[70px] rounded-md border-2 p-2 overflow-hidden relative cursor-pointer",
-                  "shadow-sm hover:shadow-md transition-shadow",
+                  "h-full min-h-[70px] rounded-md border p-1.5 overflow-hidden relative cursor-pointer",
+                  "shadow-2xs hover:shadow-sm hover:brightness-[1.02] dark:hover:brightness-110 transition-all",
                   colorClass
                 )}
               >

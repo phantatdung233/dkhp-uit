@@ -75,11 +75,10 @@ export function Sidebar({ onClose }: SidebarProps) {
               <p>Không tìm thấy môn học nào</p>
             </div>
           ) : (
-            filteredCourses.map((course, index) => (
+            filteredCourses.map((course) => (
               <CourseItem
                 key={course.id}
                 course={course}
-                colorIndex={index % COURSE_COLORS.length}
                 onSelect={onClose}
               />
             ))
@@ -99,11 +98,10 @@ export function Sidebar({ onClose }: SidebarProps) {
 
 interface CourseItemProps {
   course: Course;
-  colorIndex: number;
   onSelect?: () => void;
 }
 
-function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
+function CourseItem({ course, onSelect }: CourseItemProps) {
   const {
     scheduledClasses,
     clickSelectedCourse,
@@ -146,16 +144,16 @@ function CourseItem({ course, colorIndex, onSelect }: CourseItemProps) {
     (sc) => sc.classSection.courseCode === course.courseCode && sc.classSection.isPractical
   );
 
-  const colorClass = COURSE_COLORS[colorIndex];
+  const colorClass = COURSE_COLORS[0];
 
   return (
     <div className="relative">
       <div
         onClick={handleClick}
         className={cn(
-          "p-3 rounded-lg border-2 cursor-pointer transition-all",
+          "p-3 rounded-lg border cursor-pointer transition-all hover:shadow-xs",
           colorClass,
-          isClickSelected && "ring-2 ring-blue-500 ring-offset-2 shadow-lg",
+          isClickSelected && "ring-2 ring-emerald-500 ring-offset-2 shadow-sm",
           isRegistered && "border-dashed opacity-70"
         )}
       >

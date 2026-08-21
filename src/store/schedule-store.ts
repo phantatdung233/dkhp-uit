@@ -94,6 +94,8 @@ interface ScheduleState {
   removeSchedule: (id: string) => void;
   switchSchedule: (id: string) => void;
   renameSchedule: (id: string, name: string) => void;
+  applySectionsToCurrentSchedule: (sections: ClassSection[]) => void;
+  createScheduleWithSections: (name: string, sections: ClassSection[]) => boolean;
 
   // UI Actions
   updateHighlightedSlots: () => void;
@@ -170,6 +172,30 @@ export const useScheduleStore = create<ScheduleState>()(
           set({
             allSections: sections,
             allCourses: courses,
+            schedules: [
+              {
+                id: "default",
+                name: "Lịch 1",
+                scheduledClasses: [],
+                totalCredits: 0,
+                warnings: [],
+                createdAt: Date.now(),
+              },
+            ],
+            currentScheduleId: "default",
+            scheduledClasses: [],
+            warnings: [],
+            totalCredits: 0,
+            highlightedSlots: [],
+            clickSelectedCourse: null,
+            clickSelectedLecturer: null,
+            clickSelectedType: null,
+            pendingTheorySection: null,
+            isClassSelectionModalOpen: false,
+            classSelectionOptions: [],
+            pendingSlot: null,
+            isReplaceModalOpen: false,
+            replaceModalData: null,
             errorMessage: null,
           }),
 
@@ -177,9 +203,31 @@ export const useScheduleStore = create<ScheduleState>()(
           set({
             allSections: [],
             allCourses: [],
+            schedules: [
+              {
+                id: "default",
+                name: "Lịch 1",
+                scheduledClasses: [],
+                totalCredits: 0,
+                warnings: [],
+                createdAt: Date.now(),
+              },
+            ],
+            currentScheduleId: "default",
             scheduledClasses: [],
             warnings: [],
             totalCredits: 0,
+            highlightedSlots: [],
+            clickSelectedCourse: null,
+            clickSelectedLecturer: null,
+            clickSelectedType: null,
+            pendingTheorySection: null,
+            isClassSelectionModalOpen: false,
+            classSelectionOptions: [],
+            pendingSlot: null,
+            isReplaceModalOpen: false,
+            replaceModalData: null,
+            errorMessage: null,
           }),
 
         // ============ Schedule Actions ============
@@ -518,6 +566,78 @@ export const useScheduleStore = create<ScheduleState>()(
           const state = get();
           const newSchedules = state.schedules.map((s) => (s.id === id ? { ...s, name } : s));
           set({ schedules: newSchedules });
+        },
+
+        applySectionsToCurrentSchedule: (sections) => {
+          const state = get();
+          const newScheduledClasses: ScheduledClass[] = sections.map((section, idx) => ({
+            id: `scheduled-${section.id}-${Date.now()}-${idx}`,
+            classSection: section,
+            addedAt: new Date(),
+          }));
+          const totalCredits = getTotalCredits(newScheduledClasses);
+          const newSchedules = state.schedules.map((s) =>
+            s.id === state.currentScheduleId
+              ? {
+                  ...s,
+                  scheduledClasses: newScheduledClasses,
+                  warnings: [],
+                  totalCredits,
+                }
+              : s
+          );
+
+          set({
+            scheduledClasses: newScheduledClasses,
+            warnings: [],
+            totalCredits,
+            schedules: newSchedules,
+            clickSelectedCourse: null,
+            clickSelectedLecturer: null,
+            pendingTheorySection: null,
+            highlightedSlots: [],
+          });
+          get().updateHighlightedSlots();
+        },
+
+        createScheduleWithSections: (name, sections) => {
+          const state = get();
+          if (state.schedules.length >= 5) {
+            return false;
+          }
+
+          const newId = Date.now().toString();
+          const newScheduledClasses: ScheduledClass[] = sections.map((section, idx) => ({
+            id: `scheduled-${section.id}-${Date.now()}-${idx}`,
+            classSection: section,
+            addedAt: new Date(),
+          }));
+          const totalCredits = getTotalCredits(newScheduledClasses);
+
+          const newSchedule: Schedule = {
+            id: newId,
+            name: name || `Lịch ${state.schedules.length + 1}`,
+            scheduledClasses: newScheduledClasses,
+            totalCredits,
+            warnings: [],
+            createdAt: Date.now(),
+          };
+
+          const newSchedules = [...state.schedules, newSchedule];
+
+          set({
+            schedules: newSchedules,
+            currentScheduleId: newId,
+            scheduledClasses: newScheduledClasses,
+            warnings: [],
+            totalCredits,
+            clickSelectedCourse: null,
+            clickSelectedLecturer: null,
+            pendingTheorySection: null,
+            highlightedSlots: [],
+          });
+          get().updateHighlightedSlots();
+          return true;
         },
 
         // ============ Selection Actions ============

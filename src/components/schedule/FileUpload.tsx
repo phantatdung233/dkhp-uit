@@ -359,7 +359,7 @@ export function FileUpload() {
                   <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
                   <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">Cảnh báo ({warnings.length})</p>
                 </div>
-                <ScrollArea className="h-[150px]">
+                <ScrollArea className="h-[120px]">
                   <div className="px-4 py-2">
                     <ul className="text-sm text-yellow-700 dark:text-yellow-400 space-y-1.5 pb-2">
                       {warnings.map((warning, i) => (
@@ -371,6 +371,19 @@ export function FileUpload() {
                     </ul>
                   </div>
                 </ScrollArea>
+              </div>
+            )}
+
+            {/* Notice about clearing old schedules */}
+            {result.success && (
+              <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50/80 dark:bg-amber-950/40 p-3 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold">Lưu ý:</p>
+                  <p className="text-amber-800 dark:text-amber-300">
+                    Toàn bộ các lớp đã xếp ở các lịch hiện tại sẽ được xóa để đồng bộ với dữ liệu mới.
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -391,7 +404,7 @@ export function FileUpload() {
             )}
             {result && (
               <Button onClick={handleImport} disabled={!result.success || result.sections.length === 0 || isLoading}>
-                Nhập vào lịch
+                Nhập
               </Button>
             )}
           </div>

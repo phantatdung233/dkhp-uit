@@ -335,6 +335,17 @@ export const DAY_NAMES: Record<number, string> = {
 };
 
 /**
- * Color palette cho các môn học
+ * Color palette cho các môn học (Màu đặc rõ ràng, không bị chỉ hiển thị mỗi viền)
  */
-export const COURSE_COLORS = ["bg-green-100 border-green-200 text-green-800"];
+export const COURSE_COLORS = [
+  "bg-emerald-100 border-emerald-300 text-emerald-950",
+  "bg-teal-100 border-teal-300 text-teal-950",
+  "bg-cyan-100 border-cyan-300 text-cyan-950",
+  "bg-sky-100 border-sky-300 text-sky-950",
+  "bg-blue-100 border-blue-300 text-blue-950",
+  "bg-indigo-100 border-indigo-300 text-indigo-950",
+  "bg-purple-100 border-purple-300 text-purple-950",
+  "bg-rose-100 border-rose-300 text-rose-950",
+  "bg-amber-100 border-amber-300 text-amber-950",
+  "bg-lime-100 border-lime-300 text-lime-950",
+];

@@ -5,6 +5,7 @@ export { ClassSelectionModal } from "./ClassSelectionModal";
 export { ReplaceClassModal } from "./ReplaceClassModal";
 export { FileUpload } from "./FileUpload";
 export { ScheduleManager } from "./ScheduleManager";
+export { AutoScheduleModal } from "./AutoScheduleModal";
 
 // Extracted components from CalendarGrid
 export { ScheduledClassCard, ClassSectionTooltip, ClassDetailContent } from "./ScheduledClassCard";

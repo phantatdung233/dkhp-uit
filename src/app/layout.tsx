@@ -24,7 +24,7 @@ export default function RootLayout({
     <html lang="vi" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
         {children}
-        <Toaster position="bottom-right" richColors closeButton />
+        <Toaster position="bottom-right" richColors closeButton duration={3000} />
         <Analytics />
       </body>
     </html>

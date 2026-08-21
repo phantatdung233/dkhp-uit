@@ -106,3 +106,19 @@
     background-color: hsl(var(--muted-foreground));
   }
 }
+
+/* Sonner Toast positioning & interaction with Radix Dialogs */
+[data-sonner-toaster] {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+[data-sonner-toast] {
+  pointer-events: auto !important;
+}
+
+[data-sonner-toast] [data-close-button] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  z-index: 100000 !important;
+}

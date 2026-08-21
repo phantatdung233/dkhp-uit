@@ -13,9 +13,10 @@ import {
   ExternalLink,
   Settings,
   Upload,
+  Sparkles,
 } from "lucide-react";
 
-import { SchedulePlanner, FileUpload, ScheduleManager } from "@/components/schedule";
+import { SchedulePlanner, FileUpload, ScheduleManager, AutoScheduleModal } from "@/components/schedule";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,6 +69,7 @@ export default function Home() {
     handleExportImage,
   } = useScheduleActions();
 
+  const [showAutoScheduleModal, setShowAutoScheduleModal] = useState(false);
   const hasData = allSections.length > 0;
 
   return (
@@ -178,6 +180,21 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Auto Schedule Button */}
+              {hasData && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAutoScheduleModal(true)}
+                  className="h-8 sm:h-9 gap-1.5 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold shadow-xs"
+                  title="Sắp xếp nhanh thời khóa biểu theo mã môn"
+                >
+                  <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">Sắp xếp nhanh</span>
+                  <span className="sm:hidden">Sắp xếp</span>
+                </Button>
+              )}
+
               {/* Schedule Manager */}
               {hasData && (
                 <div className="flex items-center min-w-0 shrink">
@@ -203,6 +220,18 @@ export default function Home() {
                   </TooltipProvider>
 
                   <DropdownMenuContent align="end" className="w-56">
+                    {/* Auto schedule item */}
+                    <DropdownMenuItem
+                      onClick={() => setShowAutoScheduleModal(true)}
+                      disabled={!hasData}
+                      className="text-emerald-700 dark:text-emerald-300 font-medium focus:text-emerald-700 focus:bg-emerald-500/10"
+                    >
+                      <Sparkles className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>Sắp xếp nhanh</span>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuSeparator />
+
                     {/* Data Import/Export Section */}
                     <DropdownMenuLabel>Dữ liệu</DropdownMenuLabel>
                     <DropdownMenuItem
@@ -266,6 +295,12 @@ export default function Home() {
         <div className="hidden">
           <FileUpload />
         </div>
+
+        {/* Auto Schedule Modal */}
+        <AutoScheduleModal
+          open={showAutoScheduleModal}
+          onOpenChange={setShowAutoScheduleModal}
+        />
 
         {/* Main content */}
         <div className="flex-1 overflow-hidden">
