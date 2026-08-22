@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useScheduleStore } from "@/store/schedule-store";
 import type { ClassSection, HighlightedSlot } from "@/types";
 import { cn } from "@/lib/utils";
+import { ProfessorRatingBadge } from "./ProfessorReviewModal";
 
 const DAYS = [2, 3, 4, 5, 6, 7];
 const CELL_HEIGHT = 48;
@@ -371,17 +372,22 @@ function ClickableHighlightBlock({
                         : "border-green-100 hover:bg-green-100"
                     )}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span
-                        className={cn(
-                          "text-[10px] font-bold truncate leading-tight",
-                          block.hasConflict ? "text-red-950" : "text-green-800"
+                    <div className="flex items-start justify-between gap-1">
+                      <div className="flex items-center flex-wrap gap-1 min-w-0">
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold break-words leading-tight",
+                            block.hasConflict ? "text-red-950" : "text-green-800"
+                          )}
+                        >
+                          {section.lecturer}
+                        </span>
+                        {section.lecturer && (
+                          <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" showText={false} />
                         )}
-                      >
-                        {section.lecturer}
-                      </span>
+                      </div>
                       {block.hasConflict && (
-                        <span className="text-[8px] font-bold text-white bg-red-600 px-1 py-0.2 rounded shrink-0 shadow-xs">
+                        <span className="text-[8px] font-bold text-white bg-red-600 px-1 py-0.2 rounded shrink-0 shadow-xs mt-0.5">
                           Thay thế
                         </span>
                       )}
@@ -466,14 +472,19 @@ function ClickableHighlightBlock({
                           : "border-green-100 hover:bg-green-100"
                       )}
                     >
-                      <span
-                        className={cn(
-                          "text-[9px] font-bold truncate leading-tight",
-                          block.hasConflict ? "text-red-950" : "text-green-800"
+                      <div className="flex items-center flex-wrap gap-1 min-w-0">
+                        <span
+                          className={cn(
+                            "text-[9px] font-bold break-words leading-tight",
+                            block.hasConflict ? "text-red-950" : "text-green-800"
+                          )}
+                        >
+                          {section.lecturer}
+                        </span>
+                        {section.lecturer && (
+                          <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" showText={false} />
                         )}
-                      >
-                        {section.lecturer}
-                      </span>
+                      </div>
                     </button>
                   ))}
                 </div>

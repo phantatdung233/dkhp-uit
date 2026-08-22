@@ -46,20 +46,21 @@ export function useScheduleActions() {
   /**
    * Xử lý nhập và xếp danh sách mã lớp học phần vào phương án hiện tại.
    */
-  const handleConfirmImport = () => {
-    if (!importClassCodes.trim()) {
+  const handleConfirmImport = (codesOverride?: string): string[] => {
+    const rawText = codesOverride !== undefined ? codesOverride : importClassCodes;
+    if (!rawText.trim()) {
       toast.error("Vui lòng nhập mã lớp");
-      return;
+      return ["Vui lòng nhập danh sách mã lớp"];
     }
 
-    const codes = importClassCodes
-      .split(",")
+    const codes = rawText
+      .split(/[\n,;\s]+/)
       .map((code) => code.trim())
-      .filter((code) => code);
+      .filter((code) => code.length > 0);
 
     if (codes.length === 0) {
       toast.error("Không có mã lớp hợp lệ");
-      return;
+      return ["Không có mã lớp hợp lệ"];
     }
 
     const errors: string[] = [];
@@ -119,12 +120,13 @@ export function useScheduleActions() {
 
     if (errors.length > 0) {
       setImportErrors(errors);
-      return;
+      return errors;
     }
 
     setShowImportDialog(false);
     setImportClassCodes("");
     setImportErrors([]);
+    return [];
   };
 
   const handleClearSchedule = () => {

@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProfessorRatingBadge } from "./ProfessorReviewModal";
 
 import { useScheduleStore } from "@/store/schedule-store";
 import { DAY_NAMES } from "@/types";
@@ -76,9 +77,10 @@ export function ReplaceClassModal() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 pt-1 border-t border-green-200">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
                   <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                   <span className="truncate font-medium">{newSection.lecturer}</span>
+                  <ProfessorRatingBadge lecturerName={newSection.lecturer} size="sm" />
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
@@ -144,9 +146,10 @@ export function ReplaceClassModal() {
                     <div className="text-xs text-gray-600 font-medium">{section.classCode}</div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs text-gray-700 pt-1 border-t border-red-200">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                         <span className="truncate">{section.lecturer}</span>
+                        <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" />
                       </div>
                       <div className="flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />

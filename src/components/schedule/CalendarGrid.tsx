@@ -6,12 +6,9 @@
  */
 
 import React, { useMemo, useCallback, useState, useRef } from "react";
-import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
 import { useScheduleStore, useSlotHighlight } from "@/store/schedule-store";
 import type { ScheduledClass } from "@/types";
 import { DAY_NAMES, PERIOD_TIMES } from "@/types";
@@ -20,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { HighlightedBlocksOverlay } from "./HighlightedBlocks";
 import { ScheduledClassesOverlay } from "./ScheduledClassesOverlay";
 import { FlexibleClassesList, FlexibleSectionSelector } from "./FlexibleClasses";
-import { ClassDetailContent } from "./ScheduledClassCard";
+import { ScheduledClassDetailModal } from "./ScheduledClassDetailModal";
 
 const DAYS = [2, 3, 4, 5, 6, 7];
 const PERIODS = Array.from({ length: 15 }, (_, i) => i + 1);
@@ -330,33 +327,16 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
         )}
       </div>
 
-      {/* Modal chi tiết môn học trên thiết bị di động */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Thông tin môn học</DialogTitle>
-          </DialogHeader>
-          {selectedClassForDetail && <ClassDetailContent scheduledClass={selectedClassForDetail} />}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                if (selectedClassForDetail) {
-                  removeClassFromSchedule(selectedClassForDetail.id);
-                  setIsDetailOpen(false);
-                }
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Xóa khỏi lịch
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
-              Đóng
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Modal chi tiết môn học & đánh giá giảng viên */}
+      <ScheduledClassDetailModal
+        scheduledClass={selectedClassForDetail}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        onRemove={(id) => {
+          removeClassFromSchedule(id);
+          setIsDetailOpen(false);
+        }}
+      />
     </div>
   );
 }

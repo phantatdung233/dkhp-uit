@@ -15,4 +15,6 @@ export { ScheduledClassCard, ClassSectionTooltip, ClassDetailContent } from "./S
 export { FlexibleClassesList, FlexibleClassTooltip, FlexibleSectionSelector } from "./FlexibleClasses";
 export { HighlightedBlocksOverlay } from "./HighlightedBlocks";
 export { ScheduledClassesOverlay } from "./ScheduledClassesOverlay";
-
+export { ProfessorReviewModal, ProfessorRatingBadge } from "./ProfessorReviewModal";
+export { ScheduledClassDetailModal } from "./ScheduledClassDetailModal";
+export { ImportClassCodesModal } from "./ImportClassCodesModal";

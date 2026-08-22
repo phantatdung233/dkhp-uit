@@ -55,6 +55,8 @@ import {
   AutoSchedulePreferences,
   CourseOptionGroup,
 } from "@/lib/auto-scheduler";
+import { getProfessorRating } from "@/lib/professor-rating";
+import { ProfessorRatingBadge } from "./ProfessorReviewModal";
 import { Course, ClassSection } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -569,11 +571,15 @@ export function AutoScheduleModal({ open, onOpenChange, trigger }: AutoScheduleM
                             <SelectItem value="all" className="text-xs">
                               Bất kỳ giảng viên nào ({lecturers.length} GV)
                             </SelectItem>
-                            {lecturers.map((lecturer) => (
-                              <SelectItem key={lecturer} value={lecturer} className="text-xs">
-                                {lecturer}
-                              </SelectItem>
-                            ))}
+                            {lecturers.map((lecturer) => {
+                              const ratingInfo = getProfessorRating(lecturer);
+                              return (
+                                <SelectItem key={lecturer} value={lecturer} className="text-xs">
+                                  {lecturer}
+                                  {ratingInfo && ` (⭐ ${ratingInfo.averageRating.toFixed(1)} - ${ratingInfo.totalReviews} ĐG)`}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
@@ -848,12 +854,17 @@ function InteractiveTimetableGrid({
                       </span>
                     </div>
 
-                    <p
-                      className="text-[9px] leading-tight text-green-950/90 dark:text-green-200 font-medium line-clamp-2"
-                      title={item.section.lecturer}
-                    >
-                      GV: {item.section.lecturer || "Chưa có"}
-                    </p>
+                    <div className="flex items-center gap-1 min-w-0">
+                      <p
+                        className="text-[9px] leading-tight text-green-950/90 dark:text-green-200 font-medium truncate"
+                        title={item.section.lecturer}
+                      >
+                        GV: {item.section.lecturer || "Chưa có"}
+                      </p>
+                      {item.section.lecturer && (
+                        <ProfessorRatingBadge lecturerName={item.section.lecturer} size="sm" showText={false} />
+                      )}
+                    </div>
                   </div>
 
                   {item.availableOptions.length > 1 && (

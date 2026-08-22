@@ -20,6 +20,7 @@ import { getConflictingScheduledClasses } from "@/store/schedule-store-helpers";
 import type { ClassSection } from "@/types";
 import { DAY_NAMES } from "@/types";
 import { cn } from "@/lib/utils";
+import { ProfessorRatingBadge, ProfessorReviewModal } from "./ProfessorReviewModal";
 
 export function ClassSelectionModal() {
   const {
@@ -29,6 +30,8 @@ export function ClassSelectionModal() {
     closeClassSelectionModal,
     selectClassFromModal,
   } = useScheduleStore();
+
+  const [reviewModalLecturer, setReviewModalLecturer] = useState<string | null>(null);
 
   const [displayData, setDisplayData] = useState<{
     options: ClassSection[];
@@ -44,43 +47,57 @@ export function ClassSelectionModal() {
   if (!displayData.slot) return null;
 
   return (
-    <Dialog open={isClassSelectionModalOpen} onOpenChange={closeClassSelectionModal}>
-      <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary" />
-            Chọn lớp học phần
-          </DialogTitle>
-          <DialogDescription>
-            Có {displayData.options.length} lựa chọn vào <strong>{DAY_NAMES[displayData.slot.dayOfWeek]}</strong>, tiết{" "}
-            <strong>{displayData.slot.period}</strong>:
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isClassSelectionModalOpen} onOpenChange={closeClassSelectionModal}>
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-primary" />
+              Chọn lớp học phần
+            </DialogTitle>
+            <DialogDescription>
+              Có {displayData.options.length} lựa chọn vào <strong>{DAY_NAMES[displayData.slot.dayOfWeek]}</strong>, tiết{" "}
+              <strong>{displayData.slot.period}</strong>:
+            </DialogDescription>
+          </DialogHeader>
 
-        <ScrollArea className="max-h-[400px]">
-          <div className="space-y-3 pr-4">
-            {displayData.options.map((section) => (
-              <ClassOption key={section.id} section={section} onSelect={() => selectClassFromModal(section)} />
-            ))}
+          <ScrollArea className="max-h-[400px]">
+            <div className="space-y-3 pr-4">
+              {displayData.options.map((section) => (
+                <ClassOption 
+                  key={section.id} 
+                  section={section} 
+                  onSelect={() => selectClassFromModal(section)} 
+                  onOpenReview={(lecturer) => setReviewModalLecturer(lecturer)}
+                />
+              ))}
+            </div>
+          </ScrollArea>
+
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={closeClassSelectionModal}>
+              Hủy
+            </Button>
           </div>
-        </ScrollArea>
+        </DialogContent>
+      </Dialog>
 
-        <div className="flex justify-end pt-4 border-t">
-          <Button variant="outline" onClick={closeClassSelectionModal}>
-            Hủy
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      <ProfessorReviewModal
+        professorName={reviewModalLecturer}
+        open={Boolean(reviewModalLecturer)}
+        onOpenChange={(open) => !open && setReviewModalLecturer(null)}
+      />
+    </>
   );
 }
 
 interface ClassOptionProps {
   section: ClassSection;
   onSelect: () => void;
+  onOpenReview?: (lecturer: string) => void;
 }
 
-function ClassOption({ section, onSelect }: ClassOptionProps) {
+function ClassOption({ section, onSelect, onOpenReview }: ClassOptionProps) {
   const { scheduledClasses, replaceClassWithSection, closeClassSelectionModal } = useScheduleStore();
   const conflictingClasses = getConflictingScheduledClasses(section, scheduledClasses);
   const hasConflict = conflictingClasses.length > 0;
@@ -105,18 +122,16 @@ function ClassOption({ section, onSelect }: ClassOptionProps) {
   return (
     <div
       className={cn(
-        "p-4 rounded-lg border-2 cursor-pointer transition-all",
+        "p-3.5 rounded-lg border-2 transition-all cursor-pointer",
         hasConflict
-          ? "border-red-300 bg-red-50/50 hover:border-red-500 hover:bg-red-100/60"
-          : section.isPractical
-          ? "border-orange-200 bg-orange-50/50 hover:border-primary hover:bg-primary/5"
-          : "border-blue-200 bg-blue-50/50 hover:border-primary hover:bg-primary/5"
+          ? "border-amber-200 bg-amber-50/40 hover:border-amber-400 hover:bg-amber-50/70"
+          : "border-gray-200 hover:border-primary hover:bg-primary/5"
       )}
       onClick={handleCardClick}
     >
       <div className="flex justify-between items-start mb-2">
         <div>
-          <h4 className="font-semibold text-gray-900">{section.courseName}</h4>
+          <h4 className="font-semibold text-base text-gray-900">{section.courseName}</h4>
           <p className="text-sm text-gray-500">{section.classCode}</p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -125,19 +140,24 @@ function ClassOption({ section, onSelect }: ClassOptionProps) {
               Trùng {conflictingClasses.length} lớp
             </Badge>
           )}
-          <Badge variant={section.isPractical ? "warning" : "info"}>
+          <Badge variant={section.isPractical ? "secondary" : "outline"}>
             {section.isPractical ? "Thực hành" : "Lý thuyết"}
           </Badge>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-sm">
-        <div className="flex items-center gap-2 text-gray-600">
-          <User className="h-4 w-4 text-gray-400" />
-          <span className="truncate">{section.lecturer}</span>
+        <div className="flex items-center gap-1.5 text-gray-700 col-span-2 sm:col-span-1">
+          <User className="h-4 w-4 text-gray-400 shrink-0" />
+          <span className="truncate font-medium">{section.lecturer}</span>
+          <ProfessorRatingBadge
+            lecturerName={section.lecturer}
+            size="sm"
+            onClick={() => onOpenReview?.(section.lecturer)}
+          />
         </div>
         <div className="flex items-center gap-2 text-gray-600">
-          <Clock className="h-4 w-4 text-gray-400" />
+          <Clock className="h-4 w-4 text-gray-400 shrink-0" />
           <span>Tiết {section.periods}</span>
         </div>
         {section.room && (

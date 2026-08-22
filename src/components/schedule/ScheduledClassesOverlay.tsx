@@ -6,12 +6,9 @@
  */
 
 import React, { useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-import { ScheduledClassCard, ClassDetailContent } from "./ScheduledClassCard";
+import { ScheduledClassCard } from "./ScheduledClassCard";
+import { ScheduledClassDetailModal } from "./ScheduledClassDetailModal";
 import type { ScheduledClass } from "@/types";
 import { COURSE_COLORS } from "@/types";
 
@@ -234,33 +231,16 @@ export function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDay
         })}
       </div>
 
-      {/* Mobile detail dialog */}
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Thông tin môn học</DialogTitle>
-          </DialogHeader>
-          {selectedClassForDetail && <ClassDetailContent scheduledClass={selectedClassForDetail} />}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                if (selectedClassForDetail) {
-                  onRemove(selectedClassForDetail.id);
-                  setIsDetailOpen(false);
-                }
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Xóa khỏi lịch
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsDetailOpen(false)}>
-              Đóng
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Modal chi tiết môn học & đánh giá giảng viên */}
+      <ScheduledClassDetailModal
+        scheduledClass={selectedClassForDetail}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        onRemove={(id) => {
+          onRemove(id);
+          setIsDetailOpen(false);
+        }}
+      />
     </>
   );
 }

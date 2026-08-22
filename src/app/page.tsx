@@ -16,7 +16,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-import { SchedulePlanner, FileUpload, ScheduleManager, AutoScheduleModal } from "@/components/schedule";
+import { SchedulePlanner, FileUpload, ScheduleManager, AutoScheduleModal, ImportClassCodesModal } from "@/components/schedule";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -306,81 +306,55 @@ export default function Home() {
 
         {/* Clear schedule confirmation dialog */}
         <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-red-600">
-                <AlertTriangle className="h-5 w-5" />
-                Xác nhận xóa lịch
-              </DialogTitle>
-              <DialogDescription>
-                Bạn có chắc muốn xóa toàn bộ lịch đã xếp? Hành động này không thể hoàn tác.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowClearConfirm(false)}>
-                Hủy
-              </Button>
-              <Button variant="destructive" onClick={handleClearSchedule}>
-                Xóa lịch
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Import class codes dialog */}
-        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Download className="h-5 w-5 text-primary" />
-                Nhập mã lớp
-              </DialogTitle>
-              <DialogDescription>Nhập các mã lớp cách nhau bằng dấu phẩy</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <textarea
-                className="w-full min-h-[100px] p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary text-sm font-mono"
-                placeholder="IT001.O11.1,IT002.O12.2,IT003.O13.1,..."
-                value={importClassCodes}
-                onChange={(e) => {
-                  setImportClassCodes(e.target.value);
-                  setImportErrors([]);
-                }}
-              />
-
-              {importErrors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-3 max-h-[200px] overflow-y-auto">
-                  <h4 className="text-sm font-semibold text-red-800 mb-2 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    Có {importErrors.length} lỗi:
-                  </h4>
-                  <ul className="space-y-1">
-                    {importErrors.map((error, index) => (
-                      <li key={index} className="text-xs text-red-700">
-                        • {error}
-                      </li>
-                    ))}
-                  </ul>
+          <DialogContent className="w-[92vw] sm:max-w-md p-0 overflow-hidden rounded-2xl border shadow-2xl">
+            <DialogHeader className="p-4 sm:p-5 pr-10 sm:pr-12 border-b bg-gradient-to-r from-red-500/10 via-destructive/5 to-background space-y-1">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-red-50 dark:bg-red-950/50 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 shadow-2xs">
+                  <AlertTriangle className="h-5 w-5" />
                 </div>
-              )}
+                <div>
+                  <DialogTitle className="text-base font-bold text-foreground">
+                    Xác nhận xóa thời khóa biểu
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground">
+                    Hành động này sẽ xóa toàn bộ các lớp đã xếp ở phương án hiện tại
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="p-4 sm:p-5 text-xs text-muted-foreground leading-relaxed">
+              Bạn có chắc chắn muốn xóa tất cả các môn học đã xếp? Dữ liệu lịch này không thể khôi phục sau khi xóa.
             </div>
 
-            <DialogFooter className="gap-2">
+            <div className="p-3.5 sm:p-4 border-t bg-muted/20 flex items-center justify-end gap-2.5 shrink-0">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowImportDialog(false);
-                  setImportClassCodes("");
-                  setImportErrors([]);
-                }}
+                size="sm"
+                onClick={() => setShowClearConfirm(false)}
+                className="text-xs"
               >
                 Hủy
               </Button>
-              <Button onClick={handleConfirmImport}>Nhập lịch</Button>
-            </DialogFooter>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleClearSchedule}
+                className="gap-1.5 font-semibold text-xs shadow-xs"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Xóa lịch
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
+
+        {/* Import class codes modal */}
+        <ImportClassCodesModal
+          open={showImportDialog}
+          onOpenChange={setShowImportDialog}
+          onImport={(codes) => handleConfirmImport(codes)}
+        />
       </main>
     </TooltipProvider>
   );

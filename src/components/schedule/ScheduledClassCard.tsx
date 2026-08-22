@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { X, Clock, MapPin, User, Calendar } from "lucide-react";
+import { X, Clock, MapPin, User, Calendar, Star } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 
@@ -16,6 +16,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ClassSection, ScheduledClass } from "@/types";
 import { DAY_NAMES, PERIOD_TIMES } from "@/types";
 import { cn } from "@/lib/utils";
+import { ProfessorRatingBadge } from "./ProfessorReviewModal";
+import { getProfessorReview } from "@/lib/professor-rating";
 
 interface ScheduledClassCardProps {
   scheduledClass: ScheduledClass;
@@ -98,9 +100,14 @@ export function ScheduledClassCard({
 
           {!isCompact ? (
             <div className="mt-1 space-y-0.5 text-[10.5px] sm:text-[11px] leading-tight">
-              <div className="flex items-center gap-1 opacity-80">
-                <User className="h-3 w-3 shrink-0 opacity-70" />
-                <span className="font-semibold truncate">{section.lecturer || "Chưa có GV"}</span>
+              <div className="flex items-start flex-wrap gap-1 opacity-90 min-w-0">
+                <User className="h-3 w-3 shrink-0 opacity-70 mt-0.5" />
+                <span className="font-semibold break-words leading-tight flex-1">
+                  {section.lecturer || "Chưa có GV"}
+                </span>
+                {section.lecturer && (
+                  <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" showText={false} />
+                )}
               </div>
               {section.room && (
                 <div className="flex items-center gap-1 opacity-80">
@@ -134,9 +141,14 @@ export function ScheduledClassCard({
             </div>
           ) : (
             <div className="mt-auto space-y-0.5 text-[9.5px] sm:text-[10.5px] leading-tight">
-              <div className="flex items-center gap-1 opacity-80">
-                <User className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0 opacity-70" />
-                <span className="font-semibold truncate">{section.lecturer || "Chưa có GV"}</span>
+              <div className="flex items-start flex-wrap gap-1 opacity-90 min-w-0">
+                <User className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0 opacity-70 mt-0.5" />
+                <span className="font-semibold break-words leading-tight flex-1">
+                  {section.lecturer || "Chưa có GV"}
+                </span>
+                {section.lecturer && (
+                  <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" showText={false} />
+                )}
               </div>
               <div className="flex items-center justify-between gap-1">
                 {section.room ? (
@@ -196,21 +208,22 @@ export function ClassSectionTooltip({ section }: ClassSectionTooltipProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <div className="flex items-center gap-1">
-          <User className="h-4 w-4 text-gray-400" />
-          <span>{section.lecturer}</span>
+        <div className="flex items-center gap-1.5 col-span-2">
+          <User className="h-4 w-4 text-gray-400 shrink-0" />
+          <span className="truncate">{section.lecturer}</span>
+          <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" />
         </div>
         <div className="flex items-center gap-1">
-          <Clock className="h-4 w-4 text-gray-400" />
+          <Clock className="h-4 w-4 text-gray-400 shrink-0" />
           <span>Tiết {section.periods}</span>
         </div>
         {section.room && (
           <div className="flex items-center gap-1">
-            <MapPin className="h-4 w-4 text-gray-400" />
+            <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
             <span>{section.room}</span>
           </div>
         )}
-        <div>
+        <div className="col-span-2">
           <Badge variant={section.isPractical ? "warning" : "info"}>
             {section.isPractical ? "Thực hành" : "Lý thuyết"}
           </Badge>
@@ -225,7 +238,7 @@ export function ClassSectionTooltip({ section }: ClassSectionTooltipProps) {
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Badge variant="secondary">{section.credits} tín chỉ</Badge>
         {section.maxStudents && <Badge variant="outline">Sĩ số: {section.maxStudents}</Badge>}
       </div>
@@ -241,6 +254,8 @@ interface ClassDetailContentProps {
 
 export function ClassDetailContent({ scheduledClass }: ClassDetailContentProps) {
   const section = scheduledClass.classSection;
+  const prof = getProfessorReview(section.lecturer);
+  const [showAllReviews, setShowAllReviews] = React.useState(false);
 
   return (
     <div className="space-y-4">
@@ -254,9 +269,62 @@ export function ClassDetailContent({ scheduledClass }: ClassDetailContentProps) 
           <User className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="text-xs text-gray-500">Giảng viên</p>
-            <p className="font-medium">{section.lecturer}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+              <p className="font-medium">{section.lecturer}</p>
+              <ProfessorRatingBadge lecturerName={section.lecturer} />
+            </div>
           </div>
         </div>
+
+        {/* Khối đánh giá giảng viên nếu có */}
+        {prof && prof.totalReviews > 0 && (
+          <div className="p-3 rounded-lg border bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-900 dark:text-amber-300">
+                <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-400" />
+                <span>Đánh giá SV: {prof.averageRating.toFixed(1)} / 5.0</span>
+                <span className="text-muted-foreground font-normal">({prof.totalReviews} nhận xét)</span>
+              </div>
+              {prof.reviews.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllReviews(!showAllReviews)}
+                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-medium cursor-pointer"
+                >
+                  {showAllReviews ? "Thu gọn" : `Xem tất cả (${prof.reviews.length})`}
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2 pt-1 max-h-48 overflow-y-auto">
+              {(showAllReviews ? prof.reviews : prof.reviews.slice(0, 2)).map((rev, rIdx) => (
+                <div key={rIdx} className="p-2 rounded-md bg-white dark:bg-card border text-xs space-y-1 shadow-2xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-0.5">
+                      {Array.from({ length: 5 }).map((_, sIdx) => (
+                        <Star
+                          key={sIdx}
+                          className={cn(
+                            "h-3 w-3",
+                            sIdx < rev.rating ? "text-amber-500 fill-amber-400" : "text-gray-300 dark:text-gray-700"
+                          )}
+                        />
+                      ))}
+                    </div>
+                    {rev.courseName && (
+                      <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                        {rev.courseName}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-800 dark:text-gray-200 whitespace-pre-line text-[11.5px] leading-relaxed">
+                    {rev.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex items-start gap-3">
           <Clock className="h-5 w-5 text-gray-400 mt-0.5 shrink-0" />

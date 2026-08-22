@@ -19,6 +19,8 @@ import type { ClassSection, ScheduledClass } from "@/types";
 import { DAY_NAMES, COURSE_COLORS } from "@/types";
 import { cn } from "@/lib/utils";
 
+import { ProfessorRatingBadge } from "./ProfessorReviewModal";
+
 interface FlexibleClassesListProps {
   classes: ScheduledClass[];
   onRemove: (id: string) => void;
@@ -92,9 +94,14 @@ export function FlexibleClassesList({ classes, onRemove, onClassClick }: Flexibl
               </div>
 
               <div className="mt-1 space-y-0.5 text-[10.5px] sm:text-[11px] leading-tight">
-                <div className="flex items-center gap-1 opacity-80">
-                  <User className="h-3 w-3 shrink-0 opacity-70" />
-                  <span className="font-semibold truncate">{section.lecturer || "Chưa có GV"}</span>
+                <div className="flex items-start flex-wrap gap-1 opacity-90 min-w-0">
+                  <User className="h-3 w-3 shrink-0 opacity-70 mt-0.5" />
+                  <span className="font-semibold break-words leading-tight flex-1">
+                    {section.lecturer || "Chưa có GV"}
+                  </span>
+                  {section.lecturer && (
+                    <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" showText={false} />
+                  )}
                 </div>
                 {section.room && (
                   <div className="flex items-center gap-1 opacity-80">
@@ -132,14 +139,15 @@ export function FlexibleClassesList({ classes, onRemove, onClassClick }: Flexibl
 
         return (
           <React.Fragment key={scheduledClass.id}>
-            {/* Desktop: với tooltip, KHÔNG có click */}
+            {/* Desktop: với tooltip & click mở modal */}
             <div className="hidden md:block group relative">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
+                    onClick={handleFlexibleCardClick}
                     className={cn(
-                      "h-full min-h-[70px] rounded-md border p-1.5 overflow-hidden relative",
-                      "shadow-2xs hover:shadow-sm hover:brightness-[1.02] dark:hover:brightness-110 transition-all cursor-default",
+                      "h-full min-h-[70px] rounded-md border p-1.5 overflow-hidden relative cursor-pointer",
+                      "shadow-2xs hover:shadow-sm hover:brightness-[1.02] dark:hover:brightness-110 transition-all",
                       colorClass
                     )}
                   >
@@ -188,12 +196,13 @@ export function FlexibleClassTooltip({ section, flexibleType }: FlexibleClassToo
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-        <div className="flex items-center gap-1">
-          <User className="h-4 w-4 text-gray-400" />
-          <span>{section.lecturer}</span>
+        <div className="flex items-center gap-1.5 col-span-2">
+          <User className="h-4 w-4 text-gray-400 shrink-0" />
+          <span className="truncate">{section.lecturer}</span>
+          <ProfessorRatingBadge lecturerName={section.lecturer} size="sm" />
         </div>
         <div className="flex items-center gap-1 text-orange-600">
-          <Clock className="h-4 w-4" />
+          <Clock className="h-4 w-4 shrink-0" />
           <span>{flexibleType}</span>
         </div>
         {section.room && (
