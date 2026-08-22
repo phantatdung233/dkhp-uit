@@ -18,3 +18,4 @@ export { ScheduledClassesOverlay } from "./ScheduledClassesOverlay";
 export { ProfessorReviewModal, ProfessorRatingBadge } from "./ProfessorReviewModal";
 export { ScheduledClassDetailModal } from "./ScheduledClassDetailModal";
 export { ImportClassCodesModal } from "./ImportClassCodesModal";
+export { DeveloperToolsModal } from "./DeveloperToolsModal";

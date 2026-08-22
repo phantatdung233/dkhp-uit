@@ -14,9 +14,17 @@ import {
   Settings,
   Upload,
   Sparkles,
+  Code2,
 } from "lucide-react";
 
-import { SchedulePlanner, FileUpload, ScheduleManager, AutoScheduleModal, ImportClassCodesModal } from "@/components/schedule";
+import {
+  SchedulePlanner,
+  FileUpload,
+  ScheduleManager,
+  AutoScheduleModal,
+  ImportClassCodesModal,
+  DeveloperToolsModal,
+} from "@/components/schedule";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -71,6 +79,7 @@ export default function Home() {
 
   const [showAutoScheduleModal, setShowAutoScheduleModal] = useState(false);
   const [showFileUploadModal, setShowFileUploadModal] = useState(false);
+  const [showDevModal, setShowDevModal] = useState(false);
   const hasData = allSections.length > 0;
 
   return (
@@ -280,6 +289,15 @@ export default function Home() {
                       <span>Sao chép ảnh TKB</span>
                     </DropdownMenuItem>
 
+                    <DropdownMenuSeparator />
+
+                    {/* Developer Section */}
+                    <DropdownMenuLabel>Dành cho nhà phát triển</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => setShowDevModal(true)}>
+                      <Code2 className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>Công cụ phát triển</span>
+                    </DropdownMenuItem>
+
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -297,6 +315,12 @@ export default function Home() {
         <AutoScheduleModal
           open={showAutoScheduleModal}
           onOpenChange={setShowAutoScheduleModal}
+        />
+
+        {/* Developer Tools Modal */}
+        <DeveloperToolsModal
+          open={showDevModal}
+          onOpenChange={setShowDevModal}
         />
 
         {/* Main content */}
