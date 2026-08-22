@@ -1,9 +1,7 @@
 "use client";
 
 /**
- * SchedulePlanner Component
- * =========================
- * Component chính tổ chức layout
+ * Component chính điều phối giao diện phân hệ xếp thời khóa biểu (Sidebar danh sách môn + Lưới TKB).
  */
 
 import React, { useEffect, useState } from "react";
@@ -40,20 +38,27 @@ export function SchedulePlanner({ forceFullCalendar = false }: SchedulePlannerPr
   return (
     <TooltipProvider>
       <div className="flex h-full relative">
-        {/* Mobile sidebar toggle button */}
+        {/* Mobile & Tablet floating sidebar toggle button */}
         {!isSidebarOpen && (
           <Button
-            variant="outline"
-            size="icon"
-            className="fixed bottom-4 left-4 z-50 lg:hidden shadow-lg bg-white"
+            variant="default"
+            size="default"
+            className="fixed bottom-5 left-4 z-50 lg:hidden shadow-xl rounded-full bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 transition-transform active:scale-95 border border-white/20"
             onClick={() => setIsSidebarOpen(true)}
+            aria-label="Mở danh sách môn học"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5 shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold whitespace-nowrap">Danh sách môn</span>
           </Button>
         )}
 
-        {/* Mobile overlay */}
-        {isSidebarOpen && <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={handleOverlayClick} />}
+        {/* Mobile overlay with backdrop blur */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-30 lg:hidden transition-opacity"
+            onClick={handleOverlayClick}
+          />
+        )}
 
         {/* Sidebar with course list */}
         <div
@@ -67,7 +72,7 @@ export function SchedulePlanner({ forceFullCalendar = false }: SchedulePlannerPr
         </div>
 
         {/* Main calendar area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <CalendarGrid showFullWeek={forceFullCalendar} />
         </div>
       </div>

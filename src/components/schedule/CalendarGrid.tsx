@@ -1,36 +1,30 @@
 "use client";
 
 /**
- * CalendarGrid Component
- * ======================
- * Lịch biểu dạng tuần với các ô thời gian có thể nhận drop
- * Highlight các slot có thể thả khi đang kéo môn học
- * Hỗ trợ click-to-place khi đã chọn môn học từ sidebar
+ * Component hiển thị lưới thời khóa biểu tuần (Thứ 2 - Thứ 7, Tiết 1 - 15).
+ * Hỗ trợ kéo thả, click-to-place khi chọn môn từ Sidebar, highlight các ô khả dụng và cử chỉ vuốt trên di động.
  */
 
 import React, { useMemo, useCallback, useState, useRef } from "react";
-import { AlertTriangle, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { useScheduleStore, useSlotHighlight } from "@/store/schedule-store";
-import { getConflictingScheduledClasses } from "@/store/schedule-store-helpers";
 import type { ScheduledClass } from "@/types";
 import { DAY_NAMES, PERIOD_TIMES } from "@/types";
 import { cn } from "@/lib/utils";
 
-// Import extracted components
 import { HighlightedBlocksOverlay } from "./HighlightedBlocks";
 import { ScheduledClassesOverlay } from "./ScheduledClassesOverlay";
 import { FlexibleClassesList, FlexibleSectionSelector } from "./FlexibleClasses";
 import { ClassDetailContent } from "./ScheduledClassCard";
 
-// Constants
-const DAYS = [2, 3, 4, 5, 6, 7]; // Thứ 2 - Thứ 7
-const PERIODS = Array.from({ length: 15 }, (_, i) => i + 1); // Tiết 1-15
-const CELL_HEIGHT = 48; // px
+const DAYS = [2, 3, 4, 5, 6, 7];
+const PERIODS = Array.from({ length: 15 }, (_, i) => i + 1);
+const CELL_HEIGHT = 48;
 const MOBILE_DAYS_PER_PAGE = 3;
 const MOBILE_SWIPE_THRESHOLD = 50;
 
@@ -45,12 +39,9 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
     highlightedSlots,
     clickSelectedCourse,
     pendingTheorySection,
-    filterOptions,
   } = useScheduleStore();
 
-  // Mobile day pagination
   const [mobileDayPage, setMobileDayPage] = useState(0);
-  // Mobile detail dialog
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<ScheduledClass | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const totalMobilePages = Math.ceil(DAYS.length / MOBILE_DAYS_PER_PAGE);
@@ -117,18 +108,16 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
     return { regularClasses: regular, flexibleClasses: flexible };
   }, [scheduledClasses]);
 
-  // Lấy các lớp flexible từ course đang được chọn (với logic lọc giống như highlightedSlots)
+  // Lọc các lớp thời gian linh hoạt từ môn đang được chọn
   const flexibleSectionsFromSelected = useMemo(() => {
     if (!clickSelectedCourse) return [];
 
-    // Lấy các section flexible
     let flexibleSections = clickSelectedCourse.sections.filter(
       (s) => s.isFlexibleDay || s.isFlexiblePeriod || s.dayOfWeek === null
     );
 
     if (flexibleSections.length === 0) return [];
 
-    // Lấy các lớp đã đăng ký của môn này
     const registeredSections = scheduledClasses
       .filter((sc) => sc.classSection.courseCode === clickSelectedCourse.courseCode)
       .map((sc) => sc.classSection);
@@ -136,38 +125,28 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
     const registeredTheory = registeredSections.find((s) => !s.isPractical);
     const registeredPractical = registeredSections.find((s) => s.isPractical);
 
-    // Nếu đã đăng ký cả LT và TH thì không hiển thị gì
     if (registeredTheory && registeredPractical) {
       return [];
     }
 
-    // Kiểm tra xem TOÀN BỘ course (cả regular và flexible) có lớp LT không
     const courseHasTheorySections = clickSelectedCourse.sections.some((s) => !s.isPractical);
 
-    // Nếu đang chờ chọn lớp TH (sau khi đã chọn LT), chỉ hiện TH khớp mã
     if (pendingTheorySection && pendingTheorySection.courseCode === clickSelectedCourse.courseCode) {
       flexibleSections = flexibleSections.filter(
         (s) => s.isPractical && s.classCode.startsWith(pendingTheorySection.classCode + ".")
       );
-    }
-    // Nếu đã có LT (ở lịch thường hoặc linh hoạt), chỉ hiện TH khớp mã
-    else if (registeredTheory) {
+    } else if (registeredTheory) {
       flexibleSections = flexibleSections.filter(
         (s) => s.isPractical && s.classCode.startsWith(registeredTheory.classCode + ".")
       );
-    }
-    // Nếu đã có TH, chỉ hiện LT khớp mã
-    else if (registeredPractical) {
+    } else if (registeredPractical) {
       flexibleSections = flexibleSections.filter(
         (s) => !s.isPractical && registeredPractical.classCode.startsWith(s.classCode + ".")
       );
-    }
-    // Nếu chưa đăng ký gì và course có lớp LT, chỉ hiện LT flexible (nếu có)
-    else if (courseHasTheorySections) {
+    } else if (courseHasTheorySections) {
       flexibleSections = flexibleSections.filter((s) => !s.isPractical);
     }
 
-    // Lọc bỏ các lớp đã bị đăng ký cùng loại
     flexibleSections = flexibleSections.filter((section) => {
       const sameTypeClass = registeredSections.find((s) => s.isPractical === section.isPractical);
       return !sameTypeClass;
@@ -176,17 +155,15 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
     return flexibleSections;
   }, [clickSelectedCourse, scheduledClasses, pendingTheorySection]);
 
-  // Tính toán xem có cần hiển thị tiết 11+ không
+  // Ẩn bớt các tiết tối 11-15 nếu lịch hiện tại không sử dụng đến
   const maxPeriodUsed = useMemo(() => {
-    let max = 10; // Mặc định hiển thị tới tiết 10
+    let max = 10;
 
-    // Kiểm tra trong các lớp đã đăng ký (chỉ regular classes)
     regularClasses.forEach((sc) => {
       const endPeriod = sc.classSection.startPeriod + sc.classSection.periodCount - 1;
       if (endPeriod > max) max = endPeriod;
     });
 
-    // Kiểm tra trong các slot được highlight
     highlightedSlots.forEach((slot) => {
       if (slot.slot.period > max) max = slot.slot.period;
     });
@@ -205,10 +182,10 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
 
   return (
     <div className="flex-1 overflow-auto bg-white">
-      {/* Mobile day navigation */}
+      {/* Thanh điều hướng trang ngày trên mobile */}
       <div
         className={cn(
-          "flex items-center justify-between px-2 py-1 bg-gray-50 border-b md:hidden",
+          "flex items-center justify-between px-3 py-1.5 bg-gray-50/90 backdrop-blur-xs border-b sticky top-0 z-30 md:hidden",
           showFullWeek && "hidden"
         )}
       >
@@ -217,71 +194,92 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
           size="sm"
           onClick={() => setMobileDayPage((p) => Math.max(0, p - 1))}
           disabled={mobileDayPage === 0}
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 p-0 rounded-full hover:bg-gray-200"
+          aria-label="3 ngày trước"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="text-sm font-medium text-gray-600">
-          {DAY_NAMES[mobileDays[0]]} - {DAY_NAMES[mobileDays[mobileDays.length - 1]]}
-        </span>
+
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-full border shadow-2xs">
+            <span className="text-xs font-semibold text-gray-700">
+              {DAY_NAMES[mobileDays[0]]} - {DAY_NAMES[mobileDays[mobileDays.length - 1]]}
+            </span>
+          </div>
+          {/* Quick page dots */}
+          <div className="flex items-center gap-1 ml-1">
+            {Array.from({ length: totalMobilePages }).map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setMobileDayPage(idx)}
+                className={cn(
+                  "h-1.5 rounded-full transition-all",
+                  mobileDayPage === idx ? "w-4 bg-primary" : "w-1.5 bg-gray-300 hover:bg-gray-400"
+                )}
+                aria-label={`Trang ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </div>
+
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setMobileDayPage((p) => Math.min(totalMobilePages - 1, p + 1))}
           disabled={mobileDayPage >= totalMobilePages - 1}
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 p-0 rounded-full hover:bg-gray-200"
+          aria-label="3 ngày tiếp theo"
         >
-          <ChevronRight className="h-5 w-5" />
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
 
       <div
         id="schedule-calendar"
-        className="bg-white p-2 sm:p-4"
+        className="bg-white p-1.5 sm:p-3 md:p-4"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Header row - Days */}
-        <div className="flex border-b sticky top-0 bg-white z-20 shadow-sm">
-          <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 sm:p-2 z-20">
-            <span className="text-[10px] sm:text-xs font-medium text-gray-500">Tiết / Thứ</span>
+        {/* Hàng tiêu đề các thứ trong tuần */}
+        <div className="flex border-b sticky top-0 bg-white z-20 shadow-xs">
+          <div className="w-12 sm:w-16 md:w-20 shrink-0 border-r bg-gray-50 p-1 sm:p-2 z-20 flex items-center justify-center text-center">
+            <span className="text-[9.5px] sm:text-xs font-medium text-gray-500">Tiết / Thứ</span>
           </div>
-          {/* Mobile: show only visible days */}
+
           <div className={mobileHeaderClass}>
             {mobileDays.map((day) => (
-              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-1 text-center z-20">
-                <span className="font-semibold text-gray-700 text-xs">{DAY_NAMES[day]}</span>
+              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-1 sm:p-1.5 text-center z-20">
+                <span className="font-bold text-gray-700 text-xs sm:text-sm">{DAY_NAMES[day]}</span>
               </div>
             ))}
           </div>
-          {/* Desktop: show all days */}
+
           <div className={desktopHeaderClass}>
             {DAYS.map((day) => (
-              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-3 text-center z-20">
-                <span className="font-semibold text-gray-700 text-base">{DAY_NAMES[day]}</span>
+              <div key={day} className="flex-1 border-r last:border-r-0 bg-gray-50 p-2 sm:p-3 text-center z-20">
+                <span className="font-bold text-gray-700 text-sm md:text-base">{DAY_NAMES[day]}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Time slots grid */}
+        {/* Lưới các ô thời gian */}
         <div className="relative">
           {visiblePeriods.map((period) => (
             <div key={period} className="flex border-b" style={{ height: CELL_HEIGHT }}>
-              {/* Period label */}
-              <div className="w-14 sm:w-20 shrink-0 border-r bg-gray-50 p-1 flex flex-col justify-center items-center">
-                <span className="text-xs sm:text-sm font-medium text-gray-700">Tiết {period}</span>
-                <span className="text-[9px] sm:text-xs text-gray-400">{PERIOD_TIMES[period]?.start}</span>
+              <div className="w-12 sm:w-16 md:w-20 shrink-0 border-r bg-gray-50 p-0.5 sm:p-1 flex flex-col justify-center items-center text-center">
+                <span className="text-[11px] sm:text-xs md:text-sm font-semibold text-gray-700 leading-tight">Tiết {period}</span>
+                <span className="text-[8.5px] sm:text-[10px] md:text-xs text-gray-400 leading-tight">{PERIOD_TIMES[period]?.start}</span>
               </div>
 
-              {/* Mobile: show currently paged days */}
               <div className={mobileSlotClass}>
                 {mobileDays.map((day) => (
                   <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
                 ))}
               </div>
-              {/* Desktop: show all days */}
+
               <div className={desktopSlotClass}>
                 {DAYS.map((day) => (
                   <TimeSlotCell key={`${day}-${period}`} dayOfWeek={day} period={period} />
@@ -290,14 +288,14 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
             </div>
           ))}
 
-          {/* Scheduled classes overlay */}
+          {/* Lớp hiển thị các thẻ môn học đã xếp */}
           <ScheduledClassesOverlay
             scheduledClasses={regularClasses}
             onRemove={removeClassFromSchedule}
             visibleDays={mobileDays}
           />
 
-          {/* Highlighted blocks overlay (Rendered ON TOP of scheduled classes) */}
+          {/* Lớp highlight các slot trống/trùng khi chọn môn */}
           <HighlightedBlocksOverlay
             highlightedSlots={highlightedSlots}
             maxPeriod={maxPeriodUsed}
@@ -305,7 +303,7 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
           />
         </div>
 
-        {/* Flexible schedule section */}
+        {/* Khu vực danh sách môn học có lịch linh hoạt (Đồ án, KLTN, Online) */}
         {(flexibleClasses.length > 0 || flexibleSectionsFromSelected.length > 0) && (
           <div className="mt-6">
             <div className="mb-2 px-2">
@@ -314,7 +312,6 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
               </h3>
             </div>
             <div className="border rounded-lg overflow-hidden">
-              {/* Hiện phần lựa chọn TRƯỚC phần đã xếp */}
               {flexibleSectionsFromSelected.length > 0 && (
                 <FlexibleSectionSelector sections={flexibleSectionsFromSelected} />
               )}
@@ -333,7 +330,7 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
         )}
       </div>
 
-      {/* Mobile detail dialog */}
+      {/* Modal chi tiết môn học trên thiết bị di động */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -364,13 +361,14 @@ export function CalendarGrid({ showFullWeek = false }: CalendarGridProps) {
   );
 }
 
-// ============ Time Slot Cell (Droppable) ============
-
 interface TimeSlotCellProps {
   dayOfWeek: number;
   period: number;
 }
 
+/**
+ * Đại diện cho một ô thời gian đơn lẻ trên lưới TKB, hỗ trợ click để xếp hoặc thay thế lớp.
+ */
 function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
   const slotHighlight = useSlotHighlight(dayOfWeek, period);
   const {
@@ -382,17 +380,15 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
     openClassSelectionModal,
   } = useScheduleStore();
 
-  // Determine cell state
   const isHighlighted = slotHighlight && slotHighlight.availableSections.length > 0;
   const hasConflict = slotHighlight?.hasConflict;
   const hasConflictingSections = (slotHighlight?.conflictingSections?.length || 0) > 0;
   const hasClickSelection = clickSelectedCourse !== null;
 
-  // Handle click to place or replace
   const handleClick = useCallback(() => {
     if (!hasClickSelection) return;
 
-    // Trường hợp slot có lớp bị trùng lịch -> 1-chạm thay thế ngay
+    // Thay thế lớp khi click vào ô xung đột
     if (hasConflict || hasConflictingSections) {
       const conflictingSections = slotHighlight?.conflictingSections || [];
       const filteredConflicting = clickSelectedLecturer
@@ -419,10 +415,7 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
 
     if (!isHighlighted || hasConflict) return;
 
-    // Get available sections for this slot
     const availableSections = slotHighlight?.availableSections || [];
-
-    // Filter by lecturer if selected
     const filteredSections = clickSelectedLecturer
       ? availableSections.filter((s) => s.lecturer === clickSelectedLecturer)
       : availableSections;
@@ -430,7 +423,6 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
     if (filteredSections.length === 0) return;
 
     if (filteredSections.length === 1) {
-      // Only one option, add directly
       const result = addClassToSchedule(filteredSections[0]);
       if (!result.success) {
         if (result.error) {
@@ -442,7 +434,6 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
         toast.success(`Đã thêm ${filteredSections[0].courseName} vào lịch`);
       }
     } else {
-      // Multiple options, show selection modal
       openClassSelectionModal(filteredSections, { dayOfWeek, period });
     }
   }, [
@@ -465,13 +456,9 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
       onClick={handleClick}
       className={cn(
         "flex-1 border-r last:border-r-0 relative transition-colors",
-        // Base state
         !hasClickSelection && "bg-white hover:bg-gray-50",
-        // Click selection mode - clickable highlighted slots
         hasClickSelection && isHighlighted && !hasConflict && "cursor-pointer",
-        // Conflict state
         hasClickSelection && hasConflict && "bg-red-100/60 cursor-pointer",
-        // When not a valid slot
         hasClickSelection && !isHighlighted && !hasConflict && "bg-gray-50/50"
       )}
     />
@@ -479,3 +466,4 @@ function TimeSlotCell({ dayOfWeek, period }: TimeSlotCellProps) {
 }
 
 export default CalendarGrid;
+

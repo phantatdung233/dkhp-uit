@@ -1,10 +1,8 @@
 "use client";
 
 /**
- * ScheduleManager Component
- * =========================
- * Component quản lý nhiều Lịch thời khóa biểu
- * Hỗ trợ: Tạo mới (tối đa 5), xóa, đổi tên inline trực tiếp, chuyển đổi giữa các Lịch
+ * Component quản lý danh sách nhiều phương án thời khóa biểu (tối đa 5 phương án).
+ * Hỗ trợ tạo mới, xóa, chuyển đổi và đổi tên trực tiếp.
  */
 
 import React, { useState, useRef, useEffect } from "react";

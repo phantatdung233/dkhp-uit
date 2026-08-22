@@ -2,42 +2,26 @@ import * as XLSX from "xlsx";
 import { parse, isValid } from "date-fns";
 import type { ClassSection, Course, ParseResult, ParseError } from "@/types";
 
-// ============================================================================
-// Column-position-based reading (0-indexed column numbers)
-// No header name matching needed — avoids typo/variation issues.
-// ============================================================================
+/** Vị trí bắt đầu đọc dữ liệu trong file Excel UIT (Dòng 9 tương ứng index 8) */
+const DATA_START_ROW = 8;
 
-/** Data starts at row 9 in Excel (1-based), i.e., 0-based index 8 */
-const DATA_START_ROW = 8; // 0-based row index (Excel row 9)
-
-/**
- * Fixed column indices (0-based) for the required fields.
- * Column A = 0, B = 1, C = 2, ..., T = 19, U = 20
- */
+/** Chỉ số cột cố định (0-indexed) theo cấu trúc xuất bảng TKB của UIT */
 const COL = {
-  courseCode: 1,   // B — Mã môn học
-  classCode: 2,    // C — Mã lớp
-  courseName: 3,   // D — Tên môn học
-  lecturer: 5,     // F — Tên giảng viên
-  maxStudents: 6,  // G — Sĩ số
-  credits: 7,      // H — Số tín chỉ
-  day: 10,         // K — Thứ
-  periods: 11,     // L — Tiết
-  weekType: 12,    // M — Cách mấy tuần
-  room: 13,        // N — Phòng học
-  startDate: 19,   // T — Ngày bắt đầu
-  endDate: 20,     // U — Ngày kết thúc
+  courseCode: 1,   // Cột B: Mã môn học
+  classCode: 2,    // Cột C: Mã lớp
+  courseName: 3,   // Cột D: Tên môn học
+  lecturer: 5,     // Cột F: Tên giảng viên
+  maxStudents: 6,  // Cột G: Sĩ số
+  credits: 7,      // Cột H: Số tín chỉ
+  day: 10,         // Cột K: Thứ
+  periods: 11,     // Cột L: Tiết
+  weekType: 12,    // Cột M: Cách mấy tuần
+  room: 13,        // Cột N: Phòng học
+  cohort: 14,      // Cột O: Khoá học
+  faculty: 18,     // Cột S: Khoa quản lý
+  startDate: 19,   // Cột T: Ngày bắt đầu
+  endDate: 20,     // Cột U: Ngày kết thúc
 } as const;
-
-/** HTGD values that represent flexible/hybrid schedules (e.g. HT1, HT2) */
-const FLEXIBLE_HTGD_PATTERN = /^HT\d*$/i;
-
-/** HTGD values that indicate no fixed schedule (Đồ án, KLTN, TTTN) */
-const NO_SCHEDULE_HTGD = ["ĐA", "KLTN", "TTTN"];
-
-// ============================================================================
-// Helpers
-// ============================================================================
 
 function emptyResult(errMsg: string, totalRows = 0): ParseResult {
   return {
@@ -62,8 +46,8 @@ function parseNumber(value: unknown): number | undefined {
 }
 
 /**
- * Parse SĨ SỐ format: "40(0)" → 40, "10(5)" → 10, "100" → 100
- * Extracts just the capacity (max students), ignoring registered count.
+ * Trích xuất sĩ số tối đa từ định dạng "sĩ_số(đã_đk)" hoặc "sĩ_số".
+ * Ví dụ: "40(0)" -> 40, "50" -> 50.
  */
 function parseSiSo(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
@@ -100,6 +84,10 @@ function parsePeriods(value: unknown): { periods: string | null; isFlexible: boo
   return { periods: str, isFlexible: false };
 }
 
+/**
+ * Tách chuỗi tiết học dạng số liền nhau.
+ * Ví dụ: "123" -> [1, 2, 3], "121314" -> [12, 13, 14], "67890" -> [6, 7, 8, 9, 10].
+ */
 function parseDigitPeriods(str: string): number[] {
   if (str.length >= 2 && str.length % 2 === 0) {
     const twoDigit: number[] = [];
@@ -123,7 +111,6 @@ function parseDigitPeriods(str: string): number[] {
 
 function parseDate(value: unknown): Date | null {
   if (value == null || value === "") return null;
-  // Excel serial date number
   if (typeof value === "number") {
     const utcDays = Math.floor(value) - 25569;
     const d = new Date(utcDays * 86400000);
@@ -148,16 +135,10 @@ function parsePeriodInfo(periods: string): { startPeriod: number; periodCount: n
   return { startPeriod: nums[0], periodCount: nums.length };
 }
 
-// ============================================================================
-// Sheet reading — column-position-based
-// ============================================================================
-
 /**
- * Read a sheet as a 2D array and extract rows from DATA_START_ROW onward,
- * pulling values by fixed column index (not by header name).
+ * Đọc dữ liệu từ sheet theo vị trí cột cố định, bỏ qua các dòng tiêu đề trước dòng 9.
  */
 function readSheetRows(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
-  // Read as 2D array (array of arrays), header: 1 means raw rows
   const aoa: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: "",
@@ -166,12 +147,10 @@ function readSheetRows(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
 
   const rows: Record<string, unknown>[] = [];
 
-  // Data starts from DATA_START_ROW (0-based index 8 = Excel row 9)
   for (let i = DATA_START_ROW; i < aoa.length; i++) {
     const rawRow = aoa[i];
     if (!rawRow || !Array.isArray(rawRow)) continue;
 
-    // Map fixed column positions to named keys
     const row: Record<string, unknown> = {
       courseCode: rawRow[COL.courseCode] ?? "",
       classCode: rawRow[COL.classCode] ?? "",
@@ -183,6 +162,8 @@ function readSheetRows(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
       periods: rawRow[COL.periods] ?? "",
       weekType: rawRow[COL.weekType] ?? "",
       room: rawRow[COL.room] ?? "",
+      cohort: rawRow[COL.cohort] ?? "",
+      faculty: rawRow[COL.faculty] ?? "",
       startDate: rawRow[COL.startDate] ?? "",
       endDate: rawRow[COL.endDate] ?? "",
     };
@@ -193,36 +174,29 @@ function readSheetRows(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
   return rows;
 }
 
-// ============================================================================
-// Core parsing
-// ============================================================================
-
 /**
- * Parse a workbook.
- * - Table 1 (first sheet) is always TKB LT (Lý thuyết)
- * - Table 2 (second sheet) is always TKB TH (Thực hành)
- * - Any additional sheets are ignored
+ * Phân tích cú pháp toàn bộ file Excel thời khóa biểu.
+ * - Sheet 1: Thời khóa biểu Lý thuyết (TKB LT)
+ * - Sheet 2: Thời khóa biểu Thực hành (TKB TH)
  */
 export function parseWorkbook(workbook: XLSX.WorkBook): ParseResult {
   const allSections: ClassSection[] = [];
   const allErrors: ParseError[] = [];
   let totalRows = 0;
 
-  // Only process the first 2 sheets: Sheet 1 = LT, Sheet 2 = TH
   const sheetsToProcess = workbook.SheetNames.slice(0, 2);
 
   for (let sheetIdx = 0; sheetIdx < sheetsToProcess.length; sheetIdx++) {
     const sheetName = sheetsToProcess[sheetIdx];
     const sheet = workbook.Sheets[sheetName];
-    const isPracticalSheet = sheetIdx === 1; // Table 2 = TH
+    const isPracticalSheet = sheetIdx === 1;
 
     const rows = readSheetRows(sheet);
     if (!rows.length) continue;
 
-    console.log(`📄 Sheet "${sheetName}" (${isPracticalSheet ? "Thực hành" : "Lý thuyết"}): ${rows.length} dòng dữ liệu`);
+    console.log(`Sheet "${sheetName}" (${isPracticalSheet ? "Thực hành" : "Lý thuyết"}): ${rows.length} dòng dữ liệu`);
 
     const res = parseRowsData(rows, isPracticalSheet);
-
     allSections.push(...res.sections);
     allErrors.push(...res.errors.map((e) => ({ ...e, message: `[${sheetName}] ${e.message}` })));
     totalRows += res.totalRows;
@@ -239,6 +213,9 @@ export function parseWorkbook(workbook: XLSX.WorkBook): ParseResult {
   };
 }
 
+/**
+ * Phân tích dữ liệu từ đối tượng File (upload người dùng).
+ */
 export function parseExcelFile(file: File): Promise<ParseResult> {
   return new Promise((resolve) => {
     const r = new FileReader();
@@ -247,7 +224,7 @@ export function parseExcelFile(file: File): Promise<ParseResult> {
         const wb = XLSX.read(e.target?.result, { type: "binary" });
         resolve(parseWorkbook(wb));
       } catch (err) {
-        resolve(emptyResult(`Lỗi đọc file: ${err instanceof Error ? err.message : "Unknown error"}`));
+        resolve(emptyResult(`Lỗi đọc file: ${err instanceof Error ? err.message : "Không xác định"}`));
       }
     };
     r.onerror = () => resolve(emptyResult("Không thể đọc file"));
@@ -255,6 +232,9 @@ export function parseExcelFile(file: File): Promise<ParseResult> {
   });
 }
 
+/**
+ * Tải và phân tích dữ liệu bảng tính từ liên kết Google Sheets.
+ */
 export async function parseGoogleSheet(url: string): Promise<ParseResult> {
   const response = await fetch("/api/fetch-sheet", {
     method: "POST",
@@ -272,7 +252,7 @@ export async function parseGoogleSheet(url: string): Promise<ParseResult> {
         errorMsg = data.error;
       }
     } catch {
-      // fallback to generic error message
+      // Giữ thông báo lỗi mặc định khi không parse được JSON
     }
     throw new Error(errorMsg);
   }
@@ -286,10 +266,6 @@ export async function parseGoogleSheet(url: string): Promise<ParseResult> {
   }
 }
 
-
-/**
- * Parse an array of row objects (with named keys from readSheetRows) into ClassSections.
- */
 function parseRowsData(data: Record<string, unknown>[], isPracticalSheet = false): ParseResult {
   if (!data.length) return emptyResult("File không có dữ liệu");
 
@@ -302,8 +278,8 @@ function parseRowsData(data: Record<string, unknown>[], isPracticalSheet = false
       if (parsed) sections.push(...parsed);
     } catch (err) {
       errors.push({
-        row: DATA_START_ROW + idx + 1, // Excel row (1-based)
-        message: err instanceof Error ? err.message : "Unknown error",
+        row: DATA_START_ROW + idx + 1,
+        message: err instanceof Error ? err.message : "Lỗi không xác định",
         data: row,
       });
     }
@@ -320,8 +296,7 @@ function parseRowsData(data: Record<string, unknown>[], isPracticalSheet = false
 }
 
 /**
- * Parse a single row. May return multiple ClassSections for multi-day schedules.
- * Returns null for empty rows.
+ * Phân tích cú pháp một dòng dữ liệu lớp học, hỗ trợ các lớp học nhiều buổi trong tuần.
  */
 function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet = false): ClassSection[] | null {
   const classCode = getString(row.classCode);
@@ -336,7 +311,7 @@ function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet 
   const dayRaw = getString(row.day);
   const periodsRaw = getString(row.periods);
 
-  // Handle case when both THỨ and TIẾT are empty (ĐA, KLTN, TTTN, HT2, etc.)
+  // Xử lý môn không có lịch cố định (ĐA, KLTN, TTTN, HT2,...)
   if (!dayRaw && !periodsRaw) {
     return [buildSection(classCode, courseCode, courseName, row, index, isPractical, {
       dayOfWeek: null,
@@ -348,17 +323,15 @@ function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet 
     })];
   }
 
-  // Check for multi-day schedule: THỨ="3, 5", TIẾT="45, 123"
+  // Xử lý lớp học nhiều ngày trong tuần (ví dụ: THỨ="3, 5", TIẾT="45, 123")
   if (dayRaw.includes(",")) {
     return parseMultiDayRow(classCode, courseCode, courseName, row, index, isPractical, dayRaw, periodsRaw);
   }
 
-  // Single day parsing
   const dayResult = parseDay(dayRaw);
   const periodsResult = parsePeriods(periodsRaw);
 
   if (dayResult.day === null && !dayResult.isFlexible) {
-    // THỨ empty but TIẾT has value — treat as flexible
     return [buildSection(classCode, courseCode, courseName, row, index, isPractical, {
       dayOfWeek: null,
       isFlexibleDay: true,
@@ -370,7 +343,6 @@ function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet 
   }
 
   if (!periodsResult.isFlexible && !periodsResult.periods) {
-    // TIẾT empty — treat as flexible
     return [buildSection(classCode, courseCode, courseName, row, index, isPractical, {
       dayOfWeek: dayResult.day,
       isFlexibleDay: dayResult.isFlexible,
@@ -394,9 +366,6 @@ function parseRow(row: Record<string, unknown>, index: number, isPracticalSheet 
   })];
 }
 
-/**
- * Build a ClassSection with common fields + schedule-specific fields.
- */
 function buildSection(
   classCode: string,
   courseCode: string,
@@ -437,12 +406,11 @@ function buildSection(
     note: "",
     semester: undefined,
     academicYear: "",
+    cohort: getString(row.cohort),
+    faculty: getString(row.faculty),
   };
 }
 
-/**
- * Parse a multi-day row into multiple ClassSections.
- */
 function parseMultiDayRow(
   classCode: string,
   courseCode: string,
@@ -495,10 +463,9 @@ function groupPeriodsForMultiDay(periodsRaw: string, numDays: number): number[][
   return groups;
 }
 
-// ============================================================================
-// Grouping
-// ============================================================================
-
+/**
+ * Gom nhóm danh sách ClassSection thành các đối tượng Course theo mã môn học.
+ */
 function groupSectionsToCourses(sections: ClassSection[]): Course[] {
   const map = new Map<string, Course>();
   for (const s of sections) {
@@ -513,20 +480,23 @@ function groupSectionsToCourses(sections: ClassSection[]): Course[] {
         hasTheoryClass: false,
         sections: [],
         lecturers: [],
+        cohorts: [],
+        faculties: [],
       });
     }
     const c = map.get(key)!;
     c.sections.push(s);
-    // Ưu tiên lấy tên môn từ lớp lý thuyết (thường không có hậu tố TH)
+    // Ưu tiên tên môn học từ lớp lý thuyết
     if (!s.isPractical && c.courseName.includes("(TH)")) {
       c.courseName = s.courseName;
     }
     if (s.isPractical) c.hasPracticalClass = true;
     else c.hasTheoryClass = true;
     if (s.lecturer && !c.lecturers.includes(s.lecturer)) c.lecturers.push(s.lecturer);
+    if (s.cohort && !c.cohorts?.includes(s.cohort)) c.cohorts?.push(s.cohort);
+    if (s.faculty && !c.faculties?.includes(s.faculty)) c.faculties?.push(s.faculty);
   }
 
-  // Cập nhật số tín chỉ tổng của môn = Max(LT) + Max(TH)
   for (const c of map.values()) {
     const theoryCredits = Math.max(0, ...c.sections.filter((s) => !s.isPractical).map((s) => s.credits || 0));
     const practicalCredits = Math.max(0, ...c.sections.filter((s) => s.isPractical).map((s) => s.credits || 0));
@@ -538,13 +508,13 @@ function groupSectionsToCourses(sections: ClassSection[]): Course[] {
   return Array.from(map.values());
 }
 
-// ============================================================================
-// Exports
-// ============================================================================
-
+/**
+ * Kiểm tra và trả về danh sách cảnh báo từ kết quả phân tích file Excel.
+ */
 export function validateParseResult(result: ParseResult): string[] {
   const warns: string[] = [];
   if (result.errorRows > 0) warns.push(`Có ${result.errorRows} dòng lỗi không được import`);
   if (result.sections.length === 0) warns.push("Không có dữ liệu lớp học nào được import");
   return warns;
 }
+

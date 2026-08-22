@@ -1,18 +1,16 @@
 /**
- * Auto Scheduler Engine
- * ====================
- * Thuật toán tìm kiếm và xếp thời khóa biểu tự động dựa trên danh sách mã môn học.
- * Hỗ trợ ghép cặp Lý thuyết - Thực hành theo chuẩn UIT, kiểm tra xung đột thời gian,
- * gộp các phương án trùng khung giờ (cho phép chọn giảng viên), và xếp hạng theo tiêu chí.
+ * Thuật toán tìm kiếm và xếp thời khóa biểu tự động (Auto-Scheduler Engine).
+ * Hỗ trợ ghép cặp LT-TH theo quy chuẩn UIT, kiểm tra xung đột thời gian,
+ * gộp các phương án cùng khung giờ và chấm điểm theo tiêu chí người dùng.
  */
 
 import type { ClassSection, Course } from "@/types";
 import { checkConflict } from "@/lib/schedule-utils";
 
 /**
- * Một OptionGroup đại diện cho 1 phương án chọn của 1 môn học.
- * - Nếu môn chỉ có LT: OptionGroup gồm các ClassSection của lớp LT đó.
- * - Nếu môn có cả LT và TH: OptionGroup gồm các ClassSection của lớp LT + các ClassSection của lớp TH tương ứng.
+ * Đại diện cho một phương án đăng ký của một môn học.
+ * - Môn chỉ có LT: Gồm các section của lớp LT đó.
+ * - Môn có cả LT và TH: Gồm các section của lớp LT và lớp TH tương ứng.
  */
 export interface CourseOptionGroup {
   id: string;
@@ -22,47 +20,53 @@ export interface CourseOptionGroup {
   theoryLecturer?: string;
   practicalLecturer?: string;
   sections: ClassSection[];
-  lecturerSummary: string; // Tóm tắt tên giảng viên (LT + TH)
-  dropdownLabel: string; // Định dạng "Lớp - Loại lớp - Giảng viên"
+  lecturerSummary: string;
+  dropdownLabel: string;
 }
 
 /**
- * Đại diện cho 1 môn học trong phương án TKB.
- * Chứa tất cả các OptionGroup có cùng khung thời gian (thứ + tiết) để người dùng chọn giảng viên.
+ * Đại diện cho một môn học trong phương án TKB.
+ * Chứa danh sách các OptionGroup có cùng khung giờ (Thứ + Tiết) để người dùng linh hoạt chọn giảng viên.
  */
 export interface CourseScheduleItem {
   courseCode: string;
   courseName: string;
-  timePatternKey: string; // e.g. "LT: T2(1,2,3) | TH: T4(6,7,8)"
+  timePatternKey: string;
   availableOptions: CourseOptionGroup[];
   selectedOptionIndex: number;
 }
 
+/**
+ * Thông tin chi tiết một phương án thời khóa biểu hoàn chỉnh.
+ */
 export interface ScheduleSolution {
   id: string;
   courseItems: CourseScheduleItem[];
-  sections: ClassSection[]; // Sections tính từ option đang được chọn của từng môn
+  sections: ClassSection[];
   totalCredits: number;
-  studyDays: number[]; // e.g. [2, 3, 5] (Thứ 2, 3, 5)
+  studyDays: number[];
   dayCount: number;
-  morningCount: number; // Tiết 1 - 5
-  afternoonCount: number; // Tiết 6 - 10
-  eveningCount: number; // Tiết 11 - 15
+  morningCount: number;
+  afternoonCount: number;
+  eveningCount: number;
   hasSaturday: boolean;
   hasFlexibleClasses: boolean;
   score: number;
 }
 
+/**
+ * Tùy chọn ưu tiên khi tự động sắp xếp TKB.
+ */
 export interface AutoSchedulePreferences {
   timePreference: "all" | "morning" | "afternoon" | "compact_days";
   avoidSaturday: boolean;
   avoidEvening: boolean;
   maxDays?: number;
-  preferredLecturers?: Record<string, string>; // courseCode -> lecturerName
+  preferredLecturers?: Record<string, string>;
 }
 
 /**
- * Tạo chữ ký thời gian cho danh sách sections (Thứ + Tiết của LT & TH).
+ * Tạo chuỗi định danh chữ ký thời gian từ danh sách section (ví dụ: "LT:T2(1,2,3) | TH:T4(6,7,8)").
  */
 export function getOptionTimeSignature(sections: ClassSection[]): string {
   return sections
@@ -76,9 +80,6 @@ export function getOptionTimeSignature(sections: ClassSection[]): string {
     .join(" | ");
 }
 
-/**
- * Tạo chuỗi tóm tắt tên giảng viên của một OptionGroup.
- */
 function buildLecturerSummary(theorySecs: ClassSection[], practicalSecs: ClassSection[]): string {
   const tLecturer = theorySecs[0]?.lecturer;
   const pLecturer = practicalSecs[0]?.lecturer;
@@ -93,25 +94,24 @@ function buildLecturerSummary(theorySecs: ClassSection[], practicalSecs: ClassSe
 }
 
 /**
- * Tạo danh sách các OptionGroups khả dĩ cho một môn học cụ thể.
+ * Tạo danh sách các cặp hoặc nhóm lớp học phần hợp lệ cho một môn học cụ thể.
+ * Tự động ghép nối lớp LT và lớp TH theo quy tắc mã lớp của UIT (Mã TH bắt đầu bằng Mã LT + ".").
  */
 export function buildCourseOptionGroups(
   courseCode: string,
   allSections: ClassSection[],
   allCourses: Course[]
 ): CourseOptionGroup[] {
-  // Tìm tất cả các sections thuộc mã môn này
   const courseSections = allSections.filter(
     (s) => s.courseCode.toLowerCase() === courseCode.toLowerCase()
   );
 
   if (courseSections.length === 0) return [];
 
-  // Phân tách LT và TH
   const theorySections = courseSections.filter((s) => !s.isPractical);
   const practicalSections = courseSections.filter((s) => s.isPractical);
 
-  // Gom các section theo classCode (vì 1 lớp có thể có nhiều section do học nhiều thứ)
+  // Gom các section theo classCode để xử lý môn học nhiều buổi trong tuần
   const theoryGroups = new Map<string, ClassSection[]>();
   for (const s of theorySections) {
     if (!theoryGroups.has(s.classCode)) {
@@ -131,17 +131,16 @@ export function buildCourseOptionGroups(
   const options: CourseOptionGroup[] = [];
   let optIndex = 0;
 
-  // TH 1: Môn có cả LT và TH
+  // Trường hợp 1: Môn có cả lớp Lý thuyết và Thực hành
   if (theoryGroups.size > 0 && practicalGroups.size > 0) {
     for (const [tCode, tSecs] of theoryGroups.entries()) {
-      // Tìm các lớp TH khớp mã: mã TH bắt đầu bằng mã LT + "." (ví dụ: IT001.N11 -> IT001.N11.1, IT001.N11.2)
       const matchingPracticals = Array.from(practicalGroups.entries()).filter(([pCode]) =>
         pCode.startsWith(tCode + ".")
       );
 
       if (matchingPracticals.length > 0) {
         for (const [pCode, pSecs] of matchingPracticals) {
-          // Kiểm tra xem chính lớp LT và lớp TH này có bị xung đột giờ nhau không
+          // Kiểm tra xem chính lớp LT và lớp TH này có bị xung đột thời gian không
           let internalConflict = false;
           for (const ts of tSecs) {
             for (const ps of pSecs) {
@@ -175,7 +174,7 @@ export function buildCourseOptionGroups(
           }
         }
       } else {
-        // Nếu không có lớp TH nào khớp mã LT này, cho phép chọn lớp LT đơn lẻ
+        // Dự phòng khi không tìm thấy lớp TH khớp tiền tố mã LT
         const tLec = tSecs[0]?.lecturer || "Chưa có thông tin";
         options.push({
           id: `opt-${courseCode}-${optIndex++}`,
@@ -189,7 +188,7 @@ export function buildCourseOptionGroups(
       }
     }
   } else if (theoryGroups.size > 0) {
-    // TH 2: Môn chỉ có LT
+    // Trường hợp 2: Môn chỉ có Lý thuyết
     for (const [tCode, tSecs] of theoryGroups.entries()) {
       const tLec = tSecs[0]?.lecturer || "Chưa có thông tin";
       options.push({
@@ -203,7 +202,7 @@ export function buildCourseOptionGroups(
       });
     }
   } else if (practicalGroups.size > 0) {
-    // TH 3: Môn chỉ có TH (hoặc đồ án)
+    // Trường hợp 3: Môn chỉ có Thực hành hoặc Đồ án
     for (const [pCode, pSecs] of practicalGroups.entries()) {
       const pLec = pSecs[0]?.lecturer || "Chưa có thông tin";
       options.push({
@@ -221,9 +220,6 @@ export function buildCourseOptionGroups(
   return options;
 }
 
-/**
- * Kiểm tra xem một option group có xung đột với danh sách sections hiện tại không.
- */
 function hasConflictWithAccumulated(
   newOptionSections: ClassSection[],
   accumulatedSections: ClassSection[]
@@ -239,7 +235,7 @@ function hasConflictWithAccumulated(
 }
 
 /**
- * Lấy các sections hiện tại của một Solution dựa trên selectedOptionIndex của từng CourseItem.
+ * Trích xuất danh sách các ClassSection từ phương án TKB dựa theo tùy chọn giảng viên đang được chọn.
  */
 export function getSolutionSections(courseItems: CourseScheduleItem[]): ClassSection[] {
   return courseItems.flatMap((item) => {
@@ -248,10 +244,6 @@ export function getSolutionSections(courseItems: CourseScheduleItem[]): ClassSec
   });
 }
 
-/**
- * Helper: kiểm tra xem một lecturer name có khớp với preferred name không.
- * So sánh case-insensitive, hỗ trợ partial match (includes).
- */
 function lecturerMatches(lecturerName: string | undefined | null, preferredName: string): boolean {
   if (!lecturerName) return false;
   const lec = lecturerName.trim().toLowerCase();
@@ -260,15 +252,12 @@ function lecturerMatches(lecturerName: string | undefined | null, preferredName:
   return lec === pref || lec.includes(pref) || pref.includes(lec);
 }
 
-/**
- * Helper: kiểm tra xem một option group có chứa giảng viên khớp không.
- */
 function optionMatchesLecturer(opt: CourseOptionGroup, preferredLecturer: string): boolean {
   return opt.sections.some((s) => lecturerMatches(s.lecturer, preferredLecturer));
 }
 
 /**
- * Tính toán số liệu thống kê và chấm điểm cho một phương án.
+ * Tính toán số liệu thống kê và chấm điểm độ phù hợp cho từng phương án TKB.
  */
 function analyzeSolution(
   courseItems: CourseScheduleItem[],
@@ -294,7 +283,6 @@ function analyzeSolution(
       hasFlexible = true;
     }
 
-    // Đếm buổi học theo tiết
     if (s.periods && s.periods !== "*") {
       const pNums = s.periods
         .split(",")
@@ -314,57 +302,45 @@ function analyzeSolution(
   const studyDays = Array.from(daysSet).sort((a, b) => a - b);
   const dayCount = studyDays.length;
 
-  // Tính điểm ưu tiên (Score càng cao càng tốt)
   let score = 100;
 
-  // 1. Phạt nếu học nhiều ngày (càng ít ngày càng tốt)
+  // Ưu tiên lịch học ít ngày hơn
   score -= dayCount * 10;
 
-  // 2. Tiêu chí tránh thứ 7
   if (preferences.avoidSaturday && hasSaturday) {
     score -= 50;
   }
 
-  // 3. Tiêu chí tránh ca tối
   if (preferences.avoidEvening && eveningCount > 0) {
     score -= eveningCount * 15;
   }
 
-  // 4. Tiêu chí buổi học
   if (preferences.timePreference === "morning") {
     score += morningCount * 3 - afternoonCount * 3;
   } else if (preferences.timePreference === "afternoon") {
     score += afternoonCount * 3 - morningCount * 3;
   } else if (preferences.timePreference === "compact_days") {
-    // FIX Bug 4: compact_days dùng primary sort theo dayCount ở ngoài,
-    // scoring chỉ ảnh hưởng secondary sort → penalty nhẹ hơn
     score -= dayCount * 5;
   }
 
-  // 5. Thưởng điểm nếu khớp giảng viên ưu tiên (dùng normalizedPreferred thay vì raw preferences)
+  // Thưởng điểm cho các môn có giảng viên trùng khớp với ưu tiên
   for (const item of courseItems) {
     const codeKey = item.courseCode.trim().toUpperCase();
     const preferred = normalizedPreferred[codeKey];
 
     if (preferred) {
       const currentOpt = item.availableOptions[item.selectedOptionIndex];
-
-      // Kiểm tra xem option đang chọn có giảng viên này không
       const currentMatches = currentOpt && optionMatchesLecturer(currentOpt, preferred);
 
       if (currentMatches) {
-        // Thưởng điểm lớn nhưng không lấn át primary sort (compact_days)
         score += 80;
       } else {
-        // Kiểm tra xem có option nào trong available có GV này không
         const anyOptMatches = item.availableOptions.some((opt) =>
           optionMatchesLecturer(opt, preferred)
         );
         if (anyOptMatches) {
-          // Có option GV đúng nhưng chưa được chọn → thưởng ít hơn
           score += 40;
         } else {
-          // Khung giờ hoàn toàn không có GV mong muốn → phạt nhẹ
           score -= 20;
         }
       }
@@ -393,19 +369,13 @@ export interface AutoScheduleResult {
   totalFound: number;
   selectedCoursesCount: number;
   missingCourses: string[];
-  /** Các môn đã fallback (bỏ qua filter GV vì kết hợp tiêu chí = 0 options) */
   lecturerFallbackCourses: string[];
   message: string;
 }
 
 /**
- * Thuật toán chính tự động tìm tất cả các phương án thời khóa biểu hợp lệ.
- * Các phương án cùng khung giờ (chỉ khác giảng viên) sẽ được gộp thành 1 phương án duy nhất.
- *
- * Logic filter:
- * - Hard filters (loại bỏ hẳn trước backtracking): avoidSaturday
- * - Soft filter (GV ưu tiên): Nếu GV + hard filters = 0 options → fallback bỏ qua GV,
- *   giữ lại hard filters, và ghi nhận để scoring ưu tiên phương án có GV đúng.
+ * Thuật toán sinh tự động các phương án thời khóa biểu không trùng lịch.
+ * Sử dụng Backtracking tìm kiếm và gộp các phương án có cùng khung giờ để tối ưu lựa chọn giảng viên.
  */
 export function generateAutoSchedules(
   courseCodes: string[],
@@ -414,7 +384,6 @@ export function generateAutoSchedules(
   preferences: AutoSchedulePreferences,
   maxSolutions = 50
 ): AutoScheduleResult {
-  // Chuẩn hóa và lọc danh sách mã môn duy nhất
   const uniqueCodes = Array.from(
     new Set(
       courseCodes
@@ -435,7 +404,6 @@ export function generateAutoSchedules(
     };
   }
 
-  // Chuẩn hóa preferredLecturers thành key chữ hoa
   const normalizedPreferred: Record<string, string> = {};
   if (preferences.preferredLecturers) {
     for (const [k, v] of Object.entries(preferences.preferredLecturers)) {
@@ -445,18 +413,13 @@ export function generateAutoSchedules(
     }
   }
 
-  // Map thông tin môn học
   const courseMap = new Map<string, Course>();
   for (const c of allCourses) {
     courseMap.set(c.courseCode.toUpperCase(), c);
   }
 
-  // ======================================================================
-  // THU THẬP OPTIONS CHO TỪNG MÔN - Soft filter GV + Hard filter T7
-  // ======================================================================
   const courseOptionsList: CourseOptionGroup[][] = [];
   const missingCourses: string[] = [];
-  /** Các môn đã fallback bỏ qua GV ưu tiên (vì kết hợp tiêu chí = 0 options) */
   const lecturerFallbackCourses: string[] = [];
 
   for (const code of uniqueCodes) {
@@ -469,7 +432,7 @@ export function generateAutoSchedules(
 
     const prefLecturer = normalizedPreferred[code];
 
-    // Bước 1: Áp dụng HARD filter (avoidSaturday) – luôn loại bỏ
+    // Lọc cứng: Loại bỏ các lớp thứ 7 nếu được yêu cầu
     let hardFiltered = allOptions;
     if (preferences.avoidSaturday) {
       hardFiltered = allOptions.filter(
@@ -477,35 +440,28 @@ export function generateAutoSchedules(
       );
     }
 
-    // Bước 2: Áp dụng SOFT filter (GV ưu tiên) trên kết quả hard filter
+    // Lọc mềm: Thử lọc giảng viên ưu tiên, tự động fallback nếu không còn lựa chọn nào
     let finalOptions: CourseOptionGroup[];
 
     if (prefLecturer && hardFiltered.length > 0) {
-      // Thử kết hợp GV + hard filters
       const lecturerMatched = hardFiltered.filter((opt) =>
         optionMatchesLecturer(opt, prefLecturer)
       );
 
       if (lecturerMatched.length > 0) {
-        // GV + hard filters OK → dùng kết quả đã lọc
         finalOptions = lecturerMatched;
       } else {
-        // GV + hard filters = 0 → FALLBACK: bỏ qua GV, chỉ giữ hard filters
-        // Ghi nhận để scoring ưu tiên phương án có GV đúng nếu có
         finalOptions = hardFiltered;
         lecturerFallbackCourses.push(
           `${code} (GV "${prefLecturer}" không có lớp thỏa các tiêu chí khác)`
         );
       }
     } else if (prefLecturer && hardFiltered.length === 0) {
-      // Hard filter đã loại hết → thử chỉ GV filter trên allOptions
       const lecturerOnly = allOptions.filter((opt) =>
         optionMatchesLecturer(opt, prefLecturer)
       );
 
       if (lecturerOnly.length > 0) {
-        // Có lớp GV nhưng bị hard filter loại → fallback dùng tất cả (bỏ cả 2 filter)
-        // Điều này xảy ra khi GV chỉ dạy T7 mà user tick "Không học T7"
         finalOptions = allOptions;
         const filterNames: string[] = [];
         if (preferences.avoidSaturday) filterNames.push("Không học T7");
@@ -513,11 +469,9 @@ export function generateAutoSchedules(
           `${code} (GV "${prefLecturer}" chỉ có lớp không thỏa tiêu chí "${filterNames.join(", ")}")`
         );
       } else {
-        // Không có option nào cả (cả GV lẫn hard filter đều không match)
         finalOptions = [];
       }
     } else {
-      // Không có GV ưu tiên → dùng hard filtered
       finalOptions = hardFiltered;
     }
 
@@ -545,9 +499,7 @@ export function generateAutoSchedules(
     };
   }
 
-  // ======================================================================
-  // BACKTRACKING - Tìm kiếm phương án không trùng lịch
-  // ======================================================================
+  // Thuật toán quay lui (Backtracking) tìm các tổ hợp không xung đột
   const rawSolutions: CourseOptionGroup[][] = [];
 
   function backtrack(courseIndex: number, currentChosen: CourseOptionGroup[], currentSections: ClassSection[]) {
@@ -594,9 +546,7 @@ export function generateAutoSchedules(
     };
   }
 
-  // ======================================================================
-  // GỘP CÁC PHƯƠNG ÁN CÙNG KHUNG GIỜ (THỨ + TIẾT), CHỈ KHÁC GIẢNG VIÊN
-  // ======================================================================
+  // Gom các phương án có cùng khung giờ (chỉ khác giảng viên)
   const templateMap = new Map<
     string,
     {
@@ -638,13 +588,9 @@ export function generateAutoSchedules(
     }
   }
 
-  // ======================================================================
-  // XÂY DỰNG CÁC SCHEDULE SOLUTION - Auto-select GV ưu tiên
-  // ======================================================================
   const consolidatedSolutions: ScheduleSolution[] = [];
   let solutionIndex = 0;
 
-  // Xác định tập các courseCode hợp lệ (không nằm trong missingCourses)
   const validCourseCodes = uniqueCodes.filter(
     (code) => !missingCourses.some((m) => m.startsWith(code))
   );
@@ -652,7 +598,6 @@ export function generateAutoSchedules(
   for (const [, { courseOptionMap, timePatternKeys }] of templateMap.entries()) {
     const courseItems: CourseScheduleItem[] = [];
 
-    // Kiểm tra template có đủ tất cả các môn hợp lệ không
     let hasAllCourses = true;
     for (const code of validCourseCodes) {
       const optMap = courseOptionMap.get(code);
@@ -671,21 +616,16 @@ export function generateAutoSchedules(
       const courseInfo = courseMap.get(code);
       const timeKey = timePatternKeys.get(code) || "";
 
-      // =================================================================
-      // FIX Bug 3: Luôn tìm và auto-select option khớp GV ưu tiên
-      // Sắp xếp availableOptions: GV ưu tiên lên đầu
-      // =================================================================
+      // Ưu tiên đưa phương án có giảng viên mong muốn lên đầu danh sách chọn
       const prefLecturer = normalizedPreferred[code];
       let selectedOptionIndex = 0;
 
       if (prefLecturer) {
-        // Sắp xếp: options khớp GV ưu tiên lên đầu mảng
         availableOptions.sort((a, b) => {
           const aMatch = optionMatchesLecturer(a, prefLecturer) ? 1 : 0;
           const bMatch = optionMatchesLecturer(b, prefLecturer) ? 1 : 0;
-          return bMatch - aMatch; // GV match trước
+          return bMatch - aMatch;
         });
-        // selectedOptionIndex = 0 luôn trỏ đúng option GV ưu tiên (nếu có)
       }
 
       courseItems.push({
@@ -703,25 +643,17 @@ export function generateAutoSchedules(
     consolidatedSolutions.push(analyzed);
   }
 
-  // ======================================================================
-  // POST-FILTER: Chỉ filter hard criteria (T7, ca tối)
-  // GV ưu tiên KHÔNG filter ở đây nữa (đã xử lý ở pre-filter + auto-select)
-  // ======================================================================
   let filtered = consolidatedSolutions;
 
-  // 1. Tiêu chí Không học Thứ 7: Loại bỏ phương án có lịch Thứ 7
-  //    (Safety net: pre-filter đã lọc rồi nhưng consolidation có thể tạo ra)
   if (preferences.avoidSaturday) {
     filtered = filtered.filter((s) => !s.hasSaturday);
   }
 
-  // 2. Tiêu chí Tránh ca tối
   if (preferences.avoidEvening) {
     filtered = filtered.filter((s) => s.eveningCount === 0);
   }
 
-  // 3. GV ưu tiên: Thay vì loại bỏ, AUTO-CORRECT selectedOptionIndex
-  //    Đảm bảo mỗi solution trỏ đúng option GV ưu tiên nếu có
+  // Tự động điều chỉnh lựa chọn giảng viên trong phương án theo ưu tiên
   if (Object.keys(normalizedPreferred).length > 0) {
     for (const sol of filtered) {
       let needsUpdate = false;
@@ -730,24 +662,19 @@ export function generateAutoSchedules(
         const pref = normalizedPreferred[item.courseCode.trim().toUpperCase()];
         if (!pref) continue;
 
-        // Kiểm tra option hiện tại đã đúng GV chưa
         const currentOpt = item.availableOptions[item.selectedOptionIndex];
         if (currentOpt && optionMatchesLecturer(currentOpt, pref)) continue;
 
-        // Tìm option khớp GV trong tất cả available options
         const correctIdx = item.availableOptions.findIndex((opt) =>
           optionMatchesLecturer(opt, pref)
         );
 
         if (correctIdx !== -1) {
-          // Auto-correct: trỏ sang option đúng
           item.selectedOptionIndex = correctIdx;
           needsUpdate = true;
         }
-        // Nếu không tìm thấy → giữ nguyên (trường hợp fallback, GV không có trong khung giờ này)
       }
 
-      // Cập nhật lại sections sau khi auto-correct
       if (needsUpdate) {
         sol.sections = getSolutionSections(sol.courseItems);
       }
@@ -774,27 +701,20 @@ export function generateAutoSchedules(
     };
   }
 
-  // ======================================================================
-  // SẮP XẾP - Primary: compact_days (nếu chọn), Secondary: score
-  // FIX Bug 4: compact_days sort primary theo dayCount, GV chỉ ảnh hưởng secondary
-  // ======================================================================
+  // Sắp xếp các phương án: Nếu chọn 'compact_days', ưu tiên ít ngày học trước
   if (preferences.timePreference === "compact_days") {
     filtered.sort((a, b) => {
-      // Primary: ít ngày hơn lên trước
       if (a.dayCount !== b.dayCount) {
         return a.dayCount - b.dayCount;
       }
-      // Secondary: score cao hơn lên trước (GV ưu tiên nằm trong score)
       return b.score - a.score;
     });
   } else {
     filtered.sort((a, b) => b.score - a.score);
   }
 
-  // Giới hạn số lượng trả về
   const topSolutions = filtered.slice(0, maxSolutions);
 
-  // Tạo message kết quả
   let message = `Tìm thấy ${filtered.length} phương án khung giờ TKB hợp lệ!`;
   if (lecturerFallbackCourses.length > 0) {
     message += ` (Lưu ý: ${lecturerFallbackCourses.length} môn không thể áp dụng GV ưu tiên)`;
@@ -813,3 +733,4 @@ export function generateAutoSchedules(
     message,
   };
 }
+

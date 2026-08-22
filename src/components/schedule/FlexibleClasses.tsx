@@ -1,9 +1,7 @@
 "use client";
 
 /**
- * FlexibleClasses Components
- * ==========================
- * Components hiển thị các lớp học có lịch linh hoạt (thứ/tiết không cố định)
+ * Các component hiển thị và quản lý lớp học có thời gian linh hoạt (không cố định thứ/tiết).
  */
 
 import React from "react";
@@ -20,8 +18,6 @@ import { getConflictingScheduledClasses } from "@/store/schedule-store-helpers";
 import type { ClassSection, ScheduledClass } from "@/types";
 import { DAY_NAMES, COURSE_COLORS } from "@/types";
 import { cn } from "@/lib/utils";
-
-// ============ Flexible Classes List ============
 
 interface FlexibleClassesListProps {
   classes: ScheduledClass[];
@@ -57,7 +53,7 @@ export function FlexibleClassesList({ classes, onRemove, onClassClick }: Flexibl
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2 p-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5 p-2 sm:p-3">
       {classes.map((scheduledClass) => {
         const section = scheduledClass.classSection;
         const colorIdx = courseColorMap.get(section.courseCode) || 0;
@@ -302,7 +298,7 @@ export function FlexibleSectionSelector({ sections }: FlexibleSectionSelectorPro
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-sm font-medium text-green-700">{filteredSections.length} Lựa Chọn</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-4 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-2.5">
           {filteredSections.map((section) => {
             const flexibleType = getFlexibleType(section);
             // Assign color based on courseCode if already in schedule, otherwise use a default green

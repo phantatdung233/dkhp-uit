@@ -1,71 +1,47 @@
 #!/usr/bin/env node
 
 /**
- * Excel-to-JSON Converter for UIT Schedule (TKB)
- * ================================================
- * Chuyển đổi file Excel thời khóa biểu UIT sang định dạng JSON.
+ * Script CLI chuyển đổi file Excel thời khóa biểu UIT sang định dạng JSON chuẩn.
  *
- * Usage:
+ * Cách sử dụng:
  *   node scripts/excel-to-json.js <input.xlsx> [output.json]
- *   node scripts/excel-to-json.js public/samples/sample-2026-2027.xlsx
- *
- * Supported formats: .xlsx, .xlsm
- *
- * Edge cases handled:
- *   - SĨ SỐ format: "40(0)" → siso=40, dadk=0
- *   - TIẾT multi-digit: "121314" → (12,13,14), "67890" → (6,7,8,9,10)
- *   - Multi-day schedule: THỨ="3, 5", TIẾT="45, 123" → "T3 (4,5), T5 (1,2,3)"
- *   - Cách tuần: CÁCH TUẦN=2 → " — 2 tuần/lần"
- *   - Flexible schedule: HTGD=HT2 → tghoc="HT2"
- *   - No schedule (ĐA/KLTN/TTTN): tghoc=null, giangvien=null when empty
- *   - malop_lythuyet: inferred for TH classes from matching LT class codes
- *   - Date format: "2026-09-07" → "07/09/2026"
- *   - Header differences between TKB LT (TỐ TC, TÊN GIẢNG VIÊN) and TKB TH (SỐ TC, TÊN TRỢ GIẢNG)
- *   - Empty/null/undefined values gracefully handled
  */
 
 const XLSX = require("xlsx");
 const fs = require("fs");
 const path = require("path");
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-/** Data starts at row 9 in Excel (1-based), i.e., 0-based row index 8 */
+/** Vị trí dòng bắt đầu chứa dữ liệu lớp học phần trong file Excel (0-indexed, dòng 9 trong Excel) */
 const DATA_START_ROW = 8;
 
 /**
- * Fixed column indices (0-based) for the required fields.
- * Column A = 0, B = 1, C = 2, ..., T = 19, U = 20
+ * Chỉ số cột cố định (0-indexed) tương ứng với các trường dữ liệu UIT.
  */
 const COL = {
-  courseCode: 1,   // B — Mã môn học
-  classCode: 2,    // C — Mã lớp
-  courseName: 3,   // D — Tên môn học
-  lecturer: 5,     // F — Tên giảng viên
-  maxStudents: 6,  // G — Sĩ số
-  credits: 7,      // H — Số tín chỉ
-  day: 10,         // K — Thứ
-  periods: 11,     // L — Tiết
-  weekType: 12,    // M — Cách mấy tuần
-  room: 13,        // N — Phòng học
-  startDate: 19,   // T — Ngày bắt đầu
-  endDate: 20,     // U — Ngày kết thúc
+  courseCode: 1,   // Cột B: Mã môn học
+  classCode: 2,    // Cột C: Mã lớp
+  courseName: 3,   // Cột D: Tên môn học
+  lecturer: 5,     // Cột F: Tên giảng viên / trợ giảng
+  maxStudents: 6,  // Cột G: Sĩ số
+  credits: 7,      // Cột H: Số tín chỉ
+  day: 10,         // Cột K: Thứ
+  periods: 11,     // Cột L: Tiết
+  weekType: 12,    // Cột M: Cách tuần
+  room: 13,        // Cột N: Phòng học
+  cohort: 14,      // Cột O: Khóa học
+  faculty: 18,     // Cột S: Khoa quản lý
+  startDate: 19,   // Cột T: Ngày bắt đầu
+  endDate: 20,     // Cột U: Ngày kết thúc
 };
 
-/** HTGD values that indicate no fixed schedule (tghoc = null) */
+/** Các hình thức giảng dạy không xếp thứ/tiết cố định (Đồ án, Khóa luận, Thực tập) */
 const NO_SCHEDULE_HTGD = ["ĐA", "KLTN", "TTTN"];
 
-/** HTGD values that represent flexible/hybrid schedules */
+/** Các hình thức giảng dạy linh hoạt / kết hợp (HT1, HT2, ...) */
 const FLEXIBLE_HTGD_PATTERN = /^HT\d*$/i;
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
 /**
- * Get a trimmed string value, returning empty string for null/undefined.
+ * Chuyển giá trị sang chuỗi và loại bỏ khoảng trắng thừa hai đầu.
  */
 function getString(value) {
   if (value === null || value === undefined) return "";
@@ -407,17 +383,13 @@ function inferMalopLythuyet(malop, ltClassCodes) {
   return null;
 }
 
-// ============================================================================
-// Main Conversion Logic
-// ============================================================================
-
 /**
- * Parse a single sheet into an array of course objects.
- * Reads by fixed column position (not header name).
+ * Parse một sheet Excel thành danh sách các đối tượng lớp học phần.
+ * Đọc dữ liệu theo vị trí cột cố định (0-based index).
  *
- * @param {XLSX.WorkSheet} sheet - The worksheet to parse
- * @param {boolean} isPracticalSheet - Whether this is the TKB TH sheet
- * @returns {Object[]} Array of parsed course objects
+ * @param {XLSX.WorkSheet} sheet - Worksheet cần parse
+ * @param {boolean} isPracticalSheet - true nếu là sheet thực hành
+ * @returns {Object[]} Danh sách lớp học phần
  */
 function parseSheet(sheet, isPracticalSheet) {
   // Read as 2D array (array of arrays)
@@ -468,6 +440,9 @@ function parseSheet(sheet, isPracticalSheet) {
       const nbd = formatDate(rawRow[COL.startDate]);
       const nkt = formatDate(rawRow[COL.endDate]);
 
+      const khoahoc = getString(rawRow[COL.cohort]);
+      const khoaql = getString(rawRow[COL.faculty]);
+
       courses.push({
         malop,
         mamh,
@@ -481,6 +456,8 @@ function parseSheet(sheet, isPracticalSheet) {
         ngayketthuc: nkt,
         giangvien,
         tghoc,
+        khoahoc: khoahoc || null,
+        khoaql: khoaql || null,
         // Extra metadata (not in JSON output but useful for processing)
         _isPracticalSheet: isPracticalSheet,
         _rowNum: rowNum,
@@ -529,10 +506,10 @@ function convertExcelToJson(inputPath) {
     const sheet = wb.Sheets[sheetName];
     const isPracticalSheet = sheetIdx === 1; // Table 2 = TH
 
-    console.log(`\n📄 Xử lý sheet: "${sheetName}" (${isPracticalSheet ? "Thực hành" : "Lý thuyết"})`);
+    console.log(`\n Xử lý sheet: "${sheetName}" (${isPracticalSheet ? "Thực hành" : "Lý thuyết"})`);
 
     const courses = parseSheet(sheet, isPracticalSheet);
-    console.log(`  ✅ ${courses.length} lớp học phần`);
+    console.log(`   ${courses.length} lớp học phần`);
 
     // Collect LT class codes for malop_lythuyet inference
     if (!isPracticalSheet) {
@@ -561,18 +538,11 @@ function convertExcelToJson(inputPath) {
 
   // Build final output
   const output = {
-    courses: cleanCourses,
-    user_courses: [],
-    message: "Lấy danh sách đăng ký thành công",
-    status: 1,
+    courses: cleanCourses
   };
 
   return output;
 }
-
-// ============================================================================
-// CLI Entry Point
-// ============================================================================
 
 function main() {
   const args = process.argv.slice(2);
@@ -636,10 +606,10 @@ function main() {
     fs.writeFileSync(outputPath, JSON.stringify(result, null, 4), "utf-8");
 
     console.log("\n" + "═".repeat(60));
-    console.log(`✅ Chuyển đổi thành công!`);
-    console.log(`📊 Tổng số lớp: ${result.courses.length}`);
-    console.log(`📁 Output: ${outputPath}`);
-    console.log(`📏 File size: ${(fs.statSync(outputPath).size / 1024).toFixed(1)} KB`);
+    console.log(`Chuyển đổi thành công!`);
+    console.log(`Tổng số lớp: ${result.courses.length}`);
+    console.log(`Output: ${outputPath}`);
+    console.log(`File size: ${(fs.statSync(outputPath).size / 1024).toFixed(1)} KB`);
     console.log("═".repeat(60));
   } catch (err) {
     console.error(`\n❌ Lỗi: ${err.message}`);

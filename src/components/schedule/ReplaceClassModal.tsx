@@ -1,15 +1,12 @@
 "use client";
 
 /**
- * ReplaceClassModal Component
- * ===========================
- * Modal xác nhận thay thế lớp học phần khi có xung đột thời gian hoặc trùng môn
+ * Modal xác nhận thay thế lớp học phần khi có xung đột thời gian hoặc trùng loại môn học.
  */
 
 import React from "react";
-import { AlertTriangle, RefreshCw, ArrowRight, User, Clock, MapPin, Calendar, Check, X } from "lucide-react";
+import { AlertTriangle, RefreshCw, User, Clock, MapPin, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { vi } from "date-fns/locale";
 import { toast } from "sonner";
 
 import {
@@ -25,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { useScheduleStore } from "@/store/schedule-store";
-import { DAY_NAMES, PERIOD_TIMES } from "@/types";
+import { DAY_NAMES } from "@/types";
 
 export function ReplaceClassModal() {
   const { isReplaceModalOpen, replaceModalData, closeReplaceModal, confirmReplace } = useScheduleStore();
@@ -41,7 +38,7 @@ export function ReplaceClassModal() {
 
   return (
     <Dialog open={isReplaceModalOpen} onOpenChange={closeReplaceModal}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col">
+      <DialogContent className="w-[95vw] sm:max-w-xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-amber-600 text-lg">
             <RefreshCw className="h-5 w-5 animate-spin-reverse" />

@@ -1,9 +1,8 @@
 "use client";
 
 /**
- * ScheduledClassCard Component
- * ============================
- * Card hiển thị thông tin một lớp học đã được xếp vào lịch
+ * Component thẻ môn học đã được xếp trên lưới lịch biểu.
+ * Hỗ trợ hiển thị tooltip thông tin chi tiết và modal xem thông tin trên mobile.
  */
 
 import React from "react";
@@ -17,8 +16,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import type { ClassSection, ScheduledClass } from "@/types";
 import { DAY_NAMES, PERIOD_TIMES } from "@/types";
 import { cn } from "@/lib/utils";
-
-// ============ Scheduled Class Card ============
 
 interface ScheduledClassCardProps {
   scheduledClass: ScheduledClass;
@@ -45,8 +42,8 @@ export function ScheduledClassCard({
   const isCompact = section.periodCount <= 2 || mobileCompact;
 
   function handleCardClick(e: React.MouseEvent): void {
-    // Chỉ gọi onClick khi ở mobile và không phải click vào nút xóa
-    if (isMobile && onClick && !(e.target as HTMLElement).closest("button")) {
+    // Chỉ gọi onClick khi không phải click vào nút xóa
+    if (onClick && !(e.target as HTMLElement).closest("button")) {
       onClick();
     }
   }
@@ -56,9 +53,8 @@ export function ScheduledClassCard({
       <div
         onClick={handleCardClick}
         className={cn(
-          "h-full w-full rounded-md border-2 overflow-hidden relative",
-          "shadow-sm hover:shadow-md transition-shadow",
-          isMobile ? "cursor-pointer" : "cursor-default",
+          "h-full w-full rounded-md border-2 overflow-hidden relative cursor-pointer",
+          "shadow-xs hover:shadow-md transition-all active:scale-[0.99]",
           mobileCompact ? "p-1" : "p-1.5",
           colorClass
         )}
@@ -301,6 +297,25 @@ export function ClassDetailContent({ scheduledClass }: ClassDetailContentProps) 
             </div>
           </div>
         )}
+
+        {(section.faculty || section.cohort) && (
+          <div className="flex items-start gap-3">
+            <div className="flex-1 grid grid-cols-2 gap-2 text-xs text-gray-600 bg-gray-50 p-2.5 rounded-md border border-gray-100">
+              {section.faculty && (
+                <div>
+                  <span className="text-gray-400">Khoa quản lý: </span>
+                  <span className="font-semibold text-gray-800">{section.faculty}</span>
+                </div>
+              )}
+              {section.cohort && (
+                <div>
+                  <span className="text-gray-400">Khoá học: </span>
+                  <span className="font-semibold text-gray-800">{section.cohort}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2 pt-2 border-t">
@@ -309,6 +324,8 @@ export function ClassDetailContent({ scheduledClass }: ClassDetailContentProps) 
         </Badge>
         <Badge variant="secondary">{section.credits} tín chỉ</Badge>
         {section.maxStudents && <Badge variant="outline">Sĩ số: {section.maxStudents}</Badge>}
+        {section.faculty && <Badge variant="outline" className="bg-blue-50/50 text-blue-700 border-blue-200">Khoa {section.faculty}</Badge>}
+        {section.cohort && <Badge variant="outline" className="bg-purple-50/50 text-purple-700 border-purple-200">K.{section.cohort}</Badge>}
       </div>
     </div>
   );

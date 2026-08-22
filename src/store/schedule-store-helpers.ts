@@ -2,7 +2,7 @@ import type { ClassSection, ScheduledClass } from "@/types";
 import { checkConflict } from "@/lib/schedule-utils";
 
 /**
- * Lọc các section hợp lệ - không trùng lớp đã đăng ký chính xác, khớp mã LT-TH
+ * Lọc danh sách các lớp học phần hợp lệ: không trùng lớp đã đăng ký và khớp mã LT-TH khi đang chọn thực hành.
  */
 export function filterValidSections(
   sections: ClassSection[],
@@ -14,11 +14,11 @@ export function filterValidSections(
       .filter((sc) => sc.classSection.courseCode === section.courseCode)
       .map((sc) => sc.classSection);
 
-    // 1. Bỏ qua nếu chính lớp này đã được đăng ký
+    // Bỏ qua nếu chính lớp này đã được đăng ký
     const exactClass = registeredSections.find((s) => s.classCode === section.classCode);
     if (exactClass) return false;
 
-    // 2. Kiểm tra tính hợp lệ giữa LT và TH khi đang chọn TH cho pending LT
+    // Kiểm tra tính hợp lệ khi đang chọn lớp thực hành cho lớp lý thuyết chờ (pending)
     if (section.isPractical) {
       if (pendingTheorySection) {
         return section.classCode.startsWith(pendingTheorySection.classCode + ".");
@@ -29,7 +29,7 @@ export function filterValidSections(
 }
 
 /**
- * Tìm tất cả các ScheduledClass bị xung đột với newSection (trùng giờ hoặc trùng môn cùng loại)
+ * Tìm tất cả các ScheduledClass bị xung đột khi thêm lớp mới (xung đột giờ học, trùng loại môn, hoặc lớp đi kèm bị ảnh hưởng).
  */
 export function getConflictingScheduledClasses(
   newSection: ClassSection,
@@ -38,7 +38,7 @@ export function getConflictingScheduledClasses(
   const result: ScheduledClass[] = [];
   const addedIds = new Set<string>();
 
-  // 1. Direct time/schedule conflicts
+  // Kiểm tra trùng lịch trực tiếp
   for (const sc of scheduledClasses) {
     if (checkConflict(newSection, sc.classSection)) {
       if (!addedIds.has(sc.id)) {
@@ -48,7 +48,7 @@ export function getConflictingScheduledClasses(
     }
   }
 
-  // 2. Same course + same type (ví dụ: thay thế LT cũ bằng LT mới của cùng môn)
+  // Kiểm tra cùng môn và cùng loại (ví dụ: thay thế LT cũ bằng LT mới của cùng môn)
   for (const sc of scheduledClasses) {
     if (
       sc.classSection.courseCode === newSection.courseCode &&
@@ -61,7 +61,7 @@ export function getConflictingScheduledClasses(
     }
   }
 
-  // 3. Lớp đi kèm với các lớp bị trùng (LT xóa TH, TH xóa LT)
+  // Tìm lớp đi kèm của các lớp bị trùng (LT xóa kèm TH, TH xóa kèm LT)
   for (const sc of [...result]) {
     const paired = findPairedClass(sc.classSection, scheduledClasses);
     if (paired && !addedIds.has(paired.id)) {
@@ -74,7 +74,7 @@ export function getConflictingScheduledClasses(
 }
 
 /**
- * Kiểm tra loại class đã đăng ký (để tránh đăng ký duplicate)
+ * Kiểm tra xem loại lớp (Lý thuyết hoặc Thực hành) của môn học này đã được đăng ký trong lịch chưa.
  */
 export function checkDuplicateTypeRegistration(
   section: ClassSection,
@@ -94,7 +94,7 @@ export function checkDuplicateTypeRegistration(
 }
 
 /**
- * Kiểm tra xem lớp TH có khớp với pending LT không
+ * Kiểm tra xem lớp thực hành có tiền tố mã lớp khớp với lớp lý thuyết đang chờ (pending) hay không.
  */
 export function validatePracticalWithPendingTheory(
   section: ClassSection,
@@ -115,15 +115,13 @@ export function validatePracticalWithPendingTheory(
 }
 
 /**
- * Tìm lớp đi kèm (LT tìm TH, TH tìm LT)
+ * Tìm lớp học phần đi kèm trong lịch (LT tìm lớp TH tương ứng, hoặc TH tìm lớp LT cha).
  */
 export function findPairedClass(
   removedSection: ClassSection,
   scheduledClasses: ScheduledClass[]
 ): ScheduledClass | undefined {
   if (removedSection.isPractical) {
-    // Đang xóa TH, tìm LT đi kèm
-    // Mã TH có dạng "LT_CODE.1", "LT_CODE.2", etc.
     const theoryClassCode = removedSection.classCode.split(".").slice(0, -1).join(".");
     return scheduledClasses.find(
       (sc) =>
@@ -133,7 +131,6 @@ export function findPairedClass(
     );
   }
 
-  // Đang xóa LT, tìm TH đi kèm
   return scheduledClasses.find(
     (sc) =>
       sc.classSection.courseCode === removedSection.courseCode &&
@@ -143,8 +140,9 @@ export function findPairedClass(
 }
 
 /**
- * Tính tổng tín chỉ không trùng lặp
+ * Tính tổng số tín chỉ của danh sách lớp đã xếp lịch.
  */
 export function calculateTotalCredits(scheduledClasses: ScheduledClass[]): number {
   return scheduledClasses.reduce((sum, sc) => sum + (sc.classSection.credits || 0), 0);
 }
+

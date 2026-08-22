@@ -1,7 +1,5 @@
 /**
- * Schedule Actions Hook
- * ====================
- * Custom hook chứa các handler functions cho schedule operations
+ * Hook quản lý các thao tác tương tác với thời khóa biểu (xuất mã lớp, nhập mã lớp, xóa lịch, xuất ảnh PNG).
  */
 
 import { useState } from "react";
@@ -21,6 +19,9 @@ export function useScheduleActions() {
 
   const hasSchedule = scheduledClasses.length > 0;
 
+  /**
+   * Sao chép danh sách các mã lớp đã đăng ký vào clipboard (ngăn cách bởi dấu phẩy).
+   */
   const handleExportCoursesCodes = () => {
     const classCodes = scheduledClasses
       .map((sc) => sc.classSection.classCode)
@@ -42,6 +43,9 @@ export function useScheduleActions() {
     setShowImportDialog(true);
   };
 
+  /**
+   * Xử lý nhập và xếp danh sách mã lớp học phần vào phương án hiện tại.
+   */
   const handleConfirmImport = () => {
     if (!importClassCodes.trim()) {
       toast.error("Vui lòng nhập mã lớp");
@@ -62,9 +66,7 @@ export function useScheduleActions() {
     const addedClasses: string[] = [];
     const skippedClasses: string[] = [];
 
-    // Xử lý từng mã lớp
     codes.forEach((code) => {
-      // Tìm class section từ mã lớp
       const section = allSections.find((s) => s.classCode === code);
 
       if (!section) {
@@ -72,33 +74,29 @@ export function useScheduleActions() {
         return;
       }
 
-      // Kiểm tra đã đăng ký chưa
       const alreadyRegistered = scheduledClasses.some((sc) => sc.classSection.classCode === code);
       if (alreadyRegistered) {
         skippedClasses.push(code);
         return;
       }
 
-      // Nếu là lớp lý thuyết, kiểm tra xem có lớp thực hành không
+      // Kiểm tra lớp thực hành bắt buộc đi kèm lớp lý thuyết
       if (!section.isPractical) {
         const practicalSections = allSections.filter(
           (s) => s.courseCode === section.courseCode && s.isPractical && s.classCode.startsWith(section.classCode + ".")
         );
 
         if (practicalSections.length > 0) {
-          // Kiểm tra xem người dùng có nhập lớp TH nào không
           const hasPracticalInInput = practicalSections.some((ps) => codes.includes(ps.classCode));
 
           if (!hasPracticalInInput) {
-            const practicalCodes = practicalSections.map((s) => s.classCode).join(", ");
             errors.push(`Lớp "${code}": Cần nhập thêm lớp thực hành (VD: ${practicalSections[0].classCode})`);
             return;
           }
         }
       }
 
-      // Thêm vào lịch với kiểm tra conflict
-      const result = addClassToSchedule(section, true); // skipPracticalPrompt = true
+      const result = addClassToSchedule(section, true);
 
       if (result.success) {
         addedClasses.push(code);
@@ -111,7 +109,6 @@ export function useScheduleActions() {
       }
     });
 
-    // Hiển thị kết quả
     if (addedClasses.length > 0) {
       toast.success(`Đã thêm ${addedClasses.length} lớp vào lịch`);
     }
@@ -122,7 +119,7 @@ export function useScheduleActions() {
 
     if (errors.length > 0) {
       setImportErrors(errors);
-      return; // Giữ dialog mở để hiển thị lỗi
+      return;
     }
 
     setShowImportDialog(false);
@@ -136,6 +133,9 @@ export function useScheduleActions() {
     toast.success("Đã xóa lịch đã xếp");
   };
 
+  /**
+   * Chụp ảnh lưới thời khóa biểu và tải về file PNG hoặc sao chép vào clipboard.
+   */
   const handleExportImage = async (action: "download" | "copy") => {
     setForceFullCalendar(true);
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -188,7 +188,6 @@ export function useScheduleActions() {
   };
 
   return {
-    // State
     showClearConfirm,
     setShowClearConfirm,
     forceFullCalendar,
@@ -200,7 +199,6 @@ export function useScheduleActions() {
     setImportErrors,
     hasSchedule,
 
-    // Handlers
     handleExportCoursesCodes,
     handleImportCoursesCodes,
     handleConfirmImport,
@@ -208,3 +206,4 @@ export function useScheduleActions() {
     handleExportImage,
   };
 }
+

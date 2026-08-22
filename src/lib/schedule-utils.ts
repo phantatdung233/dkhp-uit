@@ -1,19 +1,18 @@
 import { isWithinInterval, areIntervalsOverlapping } from "date-fns";
 import type { ClassSection, Conflict, TimeSlot, HighlightedSlot, ScheduledClass } from "@/types";
 
-/* ---------------------------
-   Caches & indexes (module-scope)
-   --------------------------- */
+// Bộ nhớ đệm (Cache) và bảng tra nhanh trong phạm vi module
 const periodCache = new Map<string, number[]>();
 const conflictMemo = new Map<string, Conflict | null>();
 const scheduleIndexCache = new WeakMap<ScheduledClass[], Map<string, ScheduledClass[]>>();
 
-/* ---------------------------
-   Small helpers
-   --------------------------- */
 function periodsKey(periods: string) {
   return periods ?? "";
 }
+
+/**
+ * Phân tích và cache danh sách các tiết học dạng mảng số nguyên đã sắp xếp.
+ */
 function cachedGetPeriodArray(periods: string): number[] {
   const k = periodsKey(periods);
   const cached = periodCache.get(k);
@@ -39,31 +38,34 @@ function datesOverlapIfDefined(a: ClassSection, b: ClassSection) {
   if (a.startDate && a.endDate && b.startDate && b.endDate) {
     return areIntervalsOverlapping({ start: a.startDate, end: a.endDate }, { start: b.startDate, end: b.endDate });
   }
-  // if not all defined, keep original behavior: treat as overlapping
   return true;
 }
 
-/* ---------------------------
-   Optimized checkConflict w/ memo + efficient period intersection
-   --------------------------- */
+function memoize(key: string, value: Conflict | null) {
+  conflictMemo.set(key, value);
+  return value;
+}
+
+/**
+ * Kiểm tra xem 2 lớp học phần có bị xung đột thời gian (thứ, tiết, ngày học) hay không.
+ * Sử dụng memoization để tăng tốc độ kiểm tra lặp lại.
+ */
 export function checkConflict(section1: ClassSection, section2: ClassSection): Conflict | null {
-  // quick equality key to memoize unordered pair
   const id1 = section1.id;
   const id2 = section2.id;
   const pairKey = id1 < id2 ? `${id1}|${id2}` : `${id2}|${id1}`;
   if (conflictMemo.has(pairKey)) return conflictMemo.get(pairKey)!;
 
-  // Early rejects
+  // Bỏ qua nếu cùng 1 lớp hoặc có lịch học linh hoạt
   if (id1 === id2) return memoize(pairKey, null);
   if (section1.isFlexibleDay || section2.isFlexibleDay) return memoize(pairKey, null);
   if (section1.isFlexiblePeriod || section2.isFlexiblePeriod) return memoize(pairKey, null);
   if (section1.dayOfWeek !== section2.dayOfWeek) return memoize(pairKey, null);
 
-  // periods
   const p1 = cachedGetPeriodArray(section1.periods);
   const p2 = cachedGetPeriodArray(section2.periods);
-  if (p1.length === 0 || p2.length === 0) return memoize(pairKey, null); // one is flexible or empty -> no time overlap
-  // iterate smaller set
+  if (p1.length === 0 || p2.length === 0) return memoize(pairKey, null);
+
   const [small, big] = p1.length <= p2.length ? [p1, new Set(p2)] : [p2, new Set(p1)];
   const overlapping: number[] = [];
   for (const x of small) {
@@ -71,7 +73,6 @@ export function checkConflict(section1: ClassSection, section2: ClassSection): C
   }
   if (overlapping.length === 0) return memoize(pairKey, null);
 
-  // dates
   if (!datesOverlapIfDefined(section1, section2)) return memoize(pairKey, null);
 
   const conflictingSlots: TimeSlot[] = overlapping.map((period) => ({
@@ -91,15 +92,9 @@ export function checkConflict(section1: ClassSection, section2: ClassSection): C
   return memoize(pairKey, conflict);
 }
 
-function memoize(key: string, value: Conflict | null) {
-  conflictMemo.set(key, value);
-  return value;
-}
-
-/* ---------------------------
-   Schedule index builder: Map<"day-period", ScheduledClass[]>
-   Uses WeakMap cache keyed by scheduledClasses array ref
-   --------------------------- */
+/**
+ * Xây dựng bảng tra cứu nhanh theo ô `Thứ-Tiết` từ danh sách lớp đã xếp lịch.
+ */
 function buildScheduleIndex(scheduledClasses: ScheduledClass[]): Map<string, ScheduledClass[]> {
   const cached = scheduleIndexCache.get(scheduledClasses);
   if (cached) return cached;
@@ -120,18 +115,17 @@ function buildScheduleIndex(scheduledClasses: ScheduledClass[]): Map<string, Sch
   return idx;
 }
 
-/* ---------------------------
-   checkConflictWithSchedule: use index to prune candidates
-   --------------------------- */
+/**
+ * Kiểm tra xem một lớp học phần mới có bị xung đột với các lớp đã xếp lịch hay không.
+ */
 export function checkConflictWithSchedule(newSection: ClassSection, scheduledClasses: ScheduledClass[]): Conflict[] {
-  // quick returns
   if (newSection.isFlexibleDay || newSection.isFlexiblePeriod || newSection.dayOfWeek == null) return [];
 
   const idx = buildScheduleIndex(scheduledClasses);
   const periods = cachedGetPeriodArray(newSection.periods);
-  if (periods.length === 0) return []; // flexible / nothing
+  if (periods.length === 0) return [];
 
-  const found = new Map<string, Conflict>(); // dedupe by pair id
+  const found = new Map<string, Conflict>();
   for (const p of periods) {
     const key = makeSlotKey(newSection.dayOfWeek, p);
     const candidates = idx.get(key);
@@ -144,9 +138,9 @@ export function checkConflictWithSchedule(newSection: ClassSection, scheduledCla
   return Array.from(found.values());
 }
 
-/* ---------------------------
-   checkMissingPairedClass: small optimizations (index by course)
-   --------------------------- */
+/**
+ * Kiểm tra xem môn học đã đăng ký có thiếu lớp lý thuyết hoặc thực hành đi kèm hay không.
+ */
 export function checkMissingPairedClass(
   section: ClassSection,
   scheduledClasses: ScheduledClass[],
@@ -198,9 +192,9 @@ export function checkMissingPairedClass(
   return null;
 }
 
-/* ---------------------------
-   getHighlightedSlots: use index + course practical map
-   --------------------------- */
+/**
+ * Tính toán danh sách các ô thời gian cần highlight khi người dùng chọn môn học hoặc kéo thả lớp.
+ */
 export function getHighlightedSlots(
   sections: ClassSection[],
   scheduledClasses: ScheduledClass[],
@@ -209,7 +203,6 @@ export function getHighlightedSlots(
   const slotMap = new Map<string, HighlightedSlot>();
   const idx = buildScheduleIndex(scheduledClasses);
 
-  // prepare course -> practicals map if needed (one pass)
   const practicalsByCourse = new Map<string, ClassSection[]>();
   if (allSections) {
     for (const s of allSections) {
@@ -220,19 +213,16 @@ export function getHighlightedSlots(
     }
   }
 
-  // iterate candidate sections
   for (const section of sections) {
     if (section.isFlexibleDay || section.isFlexiblePeriod || section.dayOfWeek == null) continue;
     const periods = cachedGetPeriodArray(section.periods);
     if (periods.length === 0) continue;
 
-    // quick conflict check using index: if any scheduled in any of its slots conflicts -> hasAnyConflict = true
     let hasAnyConflict = false;
     for (const p of periods) {
       const key = makeSlotKey(section.dayOfWeek, p);
       const cands = idx.get(key);
       if (!cands) continue;
-      // test actual conflict with those candidates
       for (const sc of cands) {
         if (checkConflict(section, sc.classSection)) {
           hasAnyConflict = true;
@@ -242,7 +232,7 @@ export function getHighlightedSlots(
       if (hasAnyConflict) break;
     }
 
-    // If LT, check practical availability - TẤT CẢ lớp TH thuộc LT này phải available
+    // Nếu là lớp LT, kiểm tra tính khả dụng của các lớp TH đi kèm
     if (!hasAnyConflict && !section.isPractical && allSections) {
       const courseHasPractical = practicalsByCourse.has(section.courseCode);
       if (courseHasPractical) {
@@ -252,25 +242,19 @@ export function getHighlightedSlots(
         if (practicals.length === 0) {
           hasAnyConflict = true;
         } else {
-          // Kiểm tra TẤT CẢ các lớp thực hành phải conflict-free
-          // Nếu bất kỳ lớp TH nào bị conflict -> LT này cũng bị conflict
           const allPracticalsAvailable = practicals.every((ps) => {
-            // Nếu TH flexible -> coi như available
             if (ps.isFlexibleDay || ps.isFlexiblePeriod || ps.dayOfWeek == null) return true;
-
-            // Kiểm tra TẤT CẢ tiết của TH này
             const periods = cachedGetPeriodArray(ps.periods);
-            if (periods.length === 0) return true; // flexible
+            if (periods.length === 0) return true;
 
-            // Nếu có BẤT KỲ tiết nào bị conflict -> TH này không available
             for (const p of periods) {
               const k = makeSlotKey(ps.dayOfWeek, p);
               const cands = idx.get(k) || [];
               if (cands.some((sc) => checkConflict(ps, sc.classSection))) {
-                return false; // TH này bị conflict
+                return false;
               }
             }
-            return true; // TH này available
+            return true;
           });
 
           if (!allPracticalsAvailable) hasAnyConflict = true;
@@ -278,7 +262,6 @@ export function getHighlightedSlots(
       }
     }
 
-    // populate slots
     for (const period of periods) {
       const slotId = makeSlotKey(section.dayOfWeek, period);
       if (!slotMap.has(slotId)) {
@@ -304,7 +287,6 @@ export function getHighlightedSlots(
     }
   }
 
-  // finalize hasConflict: if availableSections > 0 -> false
   for (const s of slotMap.values()) {
     if (s.availableSections.length > 0) s.hasConflict = false;
   }
@@ -312,16 +294,15 @@ export function getHighlightedSlots(
   return Array.from(slotMap.values());
 }
 
-/* ---------------------------
-   getAvailableSectionsForSlot: index-based + memo
-   --------------------------- */
+/**
+ * Lấy danh sách các lớp học phần có thể xếp vào ô thời gian chỉ định mà không bị trùng lịch.
+ */
 export function getAvailableSectionsForSlot(
   slot: TimeSlot,
   sections: ClassSection[],
   scheduledClasses: ScheduledClass[]
 ): ClassSection[] {
   const idx = buildScheduleIndex(scheduledClasses);
-  // quick candidates: sections that have same day & include the period
   const period = slot.period;
   const day = slot.dayOfWeek;
   const candidates = sections.filter(
@@ -329,10 +310,8 @@ export function getAvailableSectionsForSlot(
       !s.isFlexibleDay && !s.isFlexiblePeriod && s.dayOfWeek === day && cachedGetPeriodArray(s.periods).includes(period)
   );
 
-  // now test conflicts only with scheduled classes in that exact slot (prunes a lot)
   const scheduledInSlot = idx.get(makeSlotKey(day, period)) || [];
   return candidates.filter((section) => {
-    // if there is any scheduled that conflicts -> not available
     for (const sc of scheduledInSlot) {
       if (checkConflict(section, sc.classSection)) return false;
     }
@@ -340,9 +319,6 @@ export function getAvailableSectionsForSlot(
   });
 }
 
-/* ---------------------------
-   Remaining helpers unchanged (fast)
-   --------------------------- */
 export function getPeriodArray(periods: string): number[] {
   return cachedGetPeriodArray(periods);
 }
@@ -351,10 +327,16 @@ export function getClassTimeRange(section: ClassSection): { start: number; end: 
   return { start: section.startPeriod, end: section.startPeriod + section.periodCount - 1 };
 }
 
+/**
+ * Tính tổng số tín chỉ của danh sách lớp đã xếp lịch.
+ */
 export function getTotalCredits(scheduledClasses: ScheduledClass[]): number {
   return scheduledClasses.reduce((sum, sc) => sum + (sc.classSection.credits || 0), 0);
 }
 
+/**
+ * Lấy danh sách các mã môn học đã có trong lịch.
+ */
 export function getRegisteredCourses(scheduledClasses: ScheduledClass[]): string[] {
   const set = new Set<string>();
   for (const sc of scheduledClasses) set.add(sc.classSection.courseCode);
@@ -376,3 +358,4 @@ export function groupSectionsByTime(sections: ClassSection[]): Map<string, Class
   }
   return map;
 }
+

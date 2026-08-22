@@ -70,64 +70,63 @@ export default function Home() {
   } = useScheduleActions();
 
   const [showAutoScheduleModal, setShowAutoScheduleModal] = useState(false);
+  const [showFileUploadModal, setShowFileUploadModal] = useState(false);
   const hasData = allSections.length > 0;
 
   return (
     <TooltipProvider delayDuration={0}>
       <main className="h-screen flex flex-col bg-gray-100">
         {/* Header */}
-        <header className="bg-white border-b shadow-sm sticky top-0 z-50">
-          <div className="px-2 sm:px-4 py-2 flex items-center justify-between gap-2 safe-area-inset-top">
+        <header className="bg-white border-b shadow-xs sticky top-0 z-50">
+          <div className="px-2 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1.5 sm:gap-2 safe-area-inset-top">
             {/* Left side: Logo */}
-            <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
-              <div>
-                <h1 className="text-base sm:text-xl font-bold whitespace-nowrap">
-                  <span className="text-[#4299e3]">UIT</span>
-                  <span className="text-gray-400 mx-0.5 sm:mx-1">-</span>
-                  <span className="text-[#38b2ac]">ĐKHP</span>
-                </h1>
-              </div>
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+              <h1 className="text-sm sm:text-base md:text-lg font-bold whitespace-nowrap">
+                <span className="text-[#4299e3]">UIT</span>
+                <span className="text-gray-400 mx-0.5 sm:mx-1">-</span>
+                <span className="text-[#38b2ac]">ĐKHP</span>
+              </h1>
             </div>
 
             {/* Right side: Credits + Schedule Manager + Actions */}
-            <div className="flex items-center gap-1.5 sm:gap-3 ml-auto min-w-0 justify-end">
-              {/* Credits Badge - Before Schedule Manager */}
+            <div className="flex items-center gap-1 sm:gap-2 ml-auto min-w-0 justify-end">
+              {/* Credits Badge */}
               {hasData && (
-                <div className="flex items-center gap-1 sm:gap-2 border-r pr-1.5 sm:pr-3 shrink-0">
+                <div className="flex items-center gap-1 border-r pr-1 sm:pr-2 shrink-0">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div
                         className={cn(
-                          "flex items-center gap-1 px-1.5 py-1 sm:px-2.5 rounded-lg transition-all cursor-help shadow-sm",
+                          "flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md transition-all cursor-help shadow-2xs",
                           totalCredits < 14 && "bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100",
                           totalCredits >= 14 &&
-                            totalCredits <= 24 &&
-                            "bg-green-50 text-green-700 border border-green-300 hover:bg-green-100",
+                          totalCredits <= 24 &&
+                          "bg-green-50 text-green-700 border border-green-300 hover:bg-green-100",
                           totalCredits > 24 &&
-                            totalCredits <= 30 &&
-                            "bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100",
+                          totalCredits <= 30 &&
+                          "bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100",
                           totalCredits > 30 && "bg-red-50 text-red-700 border border-red-300 hover:bg-red-100"
                         )}
                       >
                         {totalCredits < 14 ? (
-                          <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <AlertTriangle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         ) : totalCredits <= 24 ? (
-                          <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <CheckCircle2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         ) : (
-                          <Info className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <Info className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         )}
                         <div className="flex flex-col">
                           <span className="text-[10px] sm:text-xs font-bold leading-tight whitespace-nowrap">
                             {totalCredits} TC
                           </span>
-                          <span className="text-[9px] sm:text-[10px] opacity-70 leading-tight hidden sm:block whitespace-nowrap">
+                          <span className="text-[8px] sm:text-[9px] opacity-70 leading-tight hidden md:block whitespace-nowrap">
                             {totalCredits < 14
                               ? "Còn Thiếu"
                               : totalCredits <= 24
-                              ? "Hợp lệ"
-                              : totalCredits <= 30
-                              ? "Cần GPA > 8.0"
-                              : "Vượt quá"}
+                                ? "Hợp lệ"
+                                : totalCredits <= 30
+                                  ? "Cần GPA > 8.0"
+                                  : "Vượt quá"}
                           </span>
                         </div>
                       </div>
@@ -186,14 +185,28 @@ export default function Home() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAutoScheduleModal(true)}
-                  className="h-8 sm:h-9 gap-1.5 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold shadow-xs"
+                  className="h-8 sm:h-9 px-2 sm:px-3 gap-1 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold shadow-2xs"
                   title="Sắp xếp nhanh thời khóa biểu theo mã môn"
                 >
-                  <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span className="hidden sm:inline">Sắp xếp nhanh</span>
-                  <span className="sm:hidden">Sắp xếp</span>
+                  <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden md:inline">Sắp xếp nhanh</span>
+                  <span className="hidden xs:inline md:hidden">Sắp xếp</span>
                 </Button>
               )}
+
+              {/* Import TKB Button */}
+              <Button
+                data-file-upload-trigger
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFileUploadModal(true)}
+                className="h-8 sm:h-9 px-2 sm:px-3 gap-1 font-medium shadow-2xs"
+                title="Nhập dữ liệu thời khóa biểu từ Excel hoặc Google Sheets"
+              >
+                <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Nhập TKB</span>
+                <span className="hidden xs:inline sm:hidden">Nhập</span>
+              </Button>
 
               {/* Schedule Manager */}
               {hasData && (
@@ -203,14 +216,14 @@ export default function Home() {
               )}
 
               {/* Action buttons */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 {/* Settings Dropdown */}
                 <DropdownMenu>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="icon">
+                          <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9">
                             <Settings className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -234,12 +247,7 @@ export default function Home() {
 
                     {/* Data Import/Export Section */}
                     <DropdownMenuLabel>Dữ liệu</DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        // Trigger FileUpload component
-                        document.querySelector<HTMLButtonElement>("[data-file-upload-trigger]")?.click();
-                      }}
-                    >
+                    <DropdownMenuItem onClick={() => setShowFileUploadModal(true)}>
                       <Upload className="mr-2 h-4 w-4" />
                       <span>Nhập dữ liệu TKB</span>
                     </DropdownMenuItem>
@@ -272,18 +280,6 @@ export default function Home() {
                       <span>Sao chép ảnh TKB</span>
                     </DropdownMenuItem>
 
-                    <DropdownMenuSeparator />
-
-                    {/* Danger Zone */}
-                    <DropdownMenuLabel className="text-red-600">Xoá Lịch</DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => setShowClearConfirm(true)}
-                      disabled={!hasSchedule}
-                      className="text-red-600 focus:text-red-600 focus:bg-red-50"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      <span>Xóa lịch</span>
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -291,10 +287,11 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Hidden FileUpload component - triggered from Settings menu */}
-        <div className="hidden">
-          <FileUpload />
-        </div>
+        {/* FileUpload modal */}
+        <FileUpload
+          open={showFileUploadModal}
+          onOpenChange={setShowFileUploadModal}
+        />
 
         {/* Auto Schedule Modal */}
         <AutoScheduleModal

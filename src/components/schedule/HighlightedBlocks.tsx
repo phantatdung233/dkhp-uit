@@ -1,13 +1,8 @@
 "use client";
 
 /**
- * HighlightedBlocks Components
- * ============================
- * Components hiển thị các block được highlight khi chọn môn học từ sidebar.
- * Hiển thị đè lên trên lớp đã chọn khi có trùng lịch và hỗ trợ thay thế 1-chạm.
- *
- * Xử lý overlap: Khi nhiều block lựa chọn trùng tiết cùng ngày, chúng được
- * chia cột ngang (giống Google Calendar) để tất cả đều hiển thị và tương tác được.
+ * Component hiển thị các khối highlight trên lịch biểu khi chọn môn học từ Sidebar.
+ * Tự động chia cột ngang khi nhiều lớp trùng tiết cùng ngày (tương tự Google Calendar) để người dùng dễ chọn hoặc thay thế 1-chạm.
  */
 
 import React from "react";
@@ -18,11 +13,8 @@ import { useScheduleStore } from "@/store/schedule-store";
 import type { ClassSection, HighlightedSlot } from "@/types";
 import { cn } from "@/lib/utils";
 
-// Constants
-const DAYS = [2, 3, 4, 5, 6, 7]; // Thứ 2 - Thứ 7
-const CELL_HEIGHT = 48; // px
-
-// ============ Overlap Layout for Highlight Blocks ============
+const DAYS = [2, 3, 4, 5, 6, 7];
+const CELL_HEIGHT = 48;
 
 interface BlockData {
   key: string;
@@ -34,16 +26,13 @@ interface BlockData {
 }
 
 interface BlockLayout {
-  /** Which column this block occupies (0-based) */
   column: number;
-  /** Total columns in this overlap group */
   totalColumns: number;
 }
 
 /**
- * Compute column layout for overlapping highlight blocks on the same day.
- * Uses greedy interval colouring + union-find, identical to the scheduled
- * classes algorithm in ScheduledClassesOverlay.
+ * Tính toán bố cục chia cột cho các khối highlight trùng giờ trong cùng một ngày.
+ * Áp dụng thuật toán Greedy Interval Coloring kết hợp Union-Find.
  */
 function computeBlockOverlapLayout(blocks: BlockData[]): Map<string, BlockLayout> {
   const result = new Map<string, BlockLayout>();
@@ -233,7 +222,7 @@ export function HighlightedBlocksOverlay({ highlightedSlots, maxPeriod, visibleD
     );
   });
 
-  return <div className="absolute inset-0 z-30 left-14 sm:left-20 pointer-events-none">{blockElements}</div>;
+  return <div className="absolute inset-0 z-30 left-12 sm:left-16 md:left-20 pointer-events-none">{blockElements}</div>;
 }
 
 // ============ Clickable Highlight Block ============

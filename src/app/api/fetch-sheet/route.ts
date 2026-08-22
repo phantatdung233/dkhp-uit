@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * Proxy API tải file Excel (.xlsx) từ Google Sheets công khai để tránh lỗi CORS trên client.
+ */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

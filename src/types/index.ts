@@ -1,226 +1,149 @@
 /**
- * TypeScript Interfaces for Schedule Planner Application
- * ======================================================
- * Định nghĩa các kiểu dữ liệu chính cho ứng dụng sắp xếp thời khóa biểu
+ * Định nghĩa kiểu dữ liệu (Type Definitions) cho ứng dụng xếp TKB UIT.
  */
 
 /**
- * ClassSection - Đại diện cho một lớp học phần cụ thể
- * Mỗi môn học có thể có nhiều ClassSection (khác giảng viên, khác giờ)
+ * Đại diện cho một lớp học phần cụ thể từ dữ liệu TKB.
  */
 export interface ClassSection {
-  /** Unique ID - tự tạo từ MÃ LỚP + index để đảm bảo unique */
+  /** ID duy nhất định danh lớp học phần */
   id: string;
-
-  /** MÃ MH - Mã môn học */
+  /** Mã môn học (ví dụ: IT001) */
   courseCode: string;
-
-  /** MÃ LỚP - Mã lớp học phần */
+  /** Mã lớp học phần (ví dụ: IT001.N11) */
   classCode: string;
-
-  /** TÊN MÔN HỌC */
+  /** Tên môn học */
   courseName: string;
-
-  /** TÊN GIẢNG VIÊN */
+  /** Giảng viên phụ trách */
   lecturer: string;
-
-  /** MÃ GIẢNG VIÊN */
+  /** Mã giảng viên (nếu có) */
   lecturerCode?: string;
-
-  /** SỐ TC - Số tín chỉ */
+  /** Số tín chỉ */
   credits: number;
-
-  /** THỰC HÀNH - true nếu là lớp thực hành */
+  /** True nếu là lớp thực hành */
   isPractical: boolean;
-
-  /** THỨ - Ngày trong tuần (2-7 cho Thứ 2 đến Thứ 7, hoặc CN = 8), null nếu là * (linh hoạt) */
+  /** Thứ trong tuần (2: Thứ 2 ... 7: Thứ 7, null nếu là môn linh hoạt/online) */
   dayOfWeek: number | null;
-
-  /** Có phải thứ linh hoạt không (dấu *) */
+  /** True nếu thứ học linh hoạt (dấu '*') */
   isFlexibleDay: boolean;
-
-  /** TIẾT - Chuỗi string các tiết học, ví dụ "12345" hoặc "*" */
+  /** Danh sách tiết học dạng chuỗi (ví dụ: "1,2,3" hoặc "*") */
   periods: string;
-
-  /** Tiết bắt đầu - Parse từ periods, 0 nếu là tiết linh hoạt */
+  /** Tiết bắt đầu (0 nếu là tiết linh hoạt) */
   startPeriod: number;
-
-  /** Số tiết học - Tính từ length của periods */
+  /** Tổng số tiết học */
   periodCount: number;
-
-  /** Có phải tiết linh hoạt không (dấu *) */
+  /** True nếu tiết học linh hoạt (dấu '*') */
   isFlexiblePeriod: boolean;
-
-  /** NBD - Ngày bắt đầu */
+  /** Ngày bắt đầu học phần */
   startDate: Date | null;
-
-  /** NKT - Ngày kết thúc */
+  /** Ngày kết thúc học phần */
   endDate: Date | null;
-
-  /** SĨ SỐ - Số lượng sinh viên tối đa */
+  /** Sĩ số tối đa */
   maxStudents?: number;
-
-  /** PHÒNG HỌC */
+  /** Phòng học */
   room?: string;
-
-  /** CÁCH TUẦN - 0: hàng tuần, 1: cách tuần */
+  /** 0: học hàng tuần, 1: học cách tuần */
   weekType?: number;
-
-  /** GHI CHÚ */
   note?: string;
-
-  /** HỌC KỲ */
   semester?: number;
-
-  /** NĂM HỌC */
   academicYear?: string;
+  /** Khóa học quản lý (Cột O) */
+  cohort?: string;
+  /** Khoa quản lý môn học (Cột S) */
+  faculty?: string;
 }
 
 /**
- * Course - Đại diện cho một môn học (group các ClassSection cùng courseName)
+ * Đại diện cho một môn học (gom nhóm các ClassSection cùng mã môn).
  */
 export interface Course {
-  /** Unique ID từ courseCode */
   id: string;
-
-  /** MÃ MH */
   courseCode: string;
-
-  /** TÊN MÔN HỌC */
   courseName: string;
-
-  /** SỐ TC */
   credits: number;
-
-  /** Có lớp thực hành không */
   hasPracticalClass: boolean;
-
-  /** Có lớp lý thuyết không */
   hasTheoryClass: boolean;
-
-  /** Số tín chỉ lý thuyết */
   theoryCredits?: number;
-
-  /** Số tín chỉ thực hành */
   practicalCredits?: number;
-
-  /** Danh sách các lớp học phần */
   sections: ClassSection[];
-
-  /** Danh sách giảng viên dạy môn này */
   lecturers: string[];
+  cohorts?: string[];
+  faculties?: string[];
 }
 
 /**
- * TimeSlot - Đại diện cho một ô thời gian trên lịch
+ * Ô thời gian cụ thể trên lưới thời khóa biểu.
  */
 export interface TimeSlot {
-  /** ID của slot: day-period format */
+  /** ID ô dạng `Thứ-Tiết` (ví dụ: "2-1") */
   id: string;
-
-  /** Ngày trong tuần (2-7) */
+  /** Thứ trong tuần (2-7) */
   dayOfWeek: number;
-
   /** Tiết học (1-15) */
   period: number;
 }
 
 /**
- * ScheduledClass - Lớp học đã được xếp vào lịch
+ * Lớp học phần đã được chọn vào một phương án TKB.
  */
 export interface ScheduledClass {
-  /** ID unique */
   id: string;
-
-  /** ClassSection được xếp */
   classSection: ClassSection;
-
-  /** Thời gian xếp vào lịch */
   addedAt: Date;
 }
 
+export type ConflictType =
+  | "time_overlap"      // Trùng tiết học cùng ngày
+  | "date_overlap"      // Trùng khoảng thời gian ngày học
+  | "missing_practical" // Đã chọn LT nhưng thiếu lớp TH bắt buộc
+  | "missing_theory";   // Đã chọn TH nhưng thiếu lớp LT
+
 /**
- * Conflict - Thông tin về xung đột lịch học
+ * Thông tin chi tiết về xung đột lịch học.
  */
 export interface Conflict {
-  /** ID unique của conflict */
   id: string;
-
-  /** Loại conflict */
   type: ConflictType;
-
-  /** Mô tả conflict */
   message: string;
-
-  /** Các lớp bị conflict */
   conflictingClasses: ClassSection[];
-
-  /** Các slot bị conflict */
   conflictingSlots: TimeSlot[];
 }
 
-export type ConflictType =
-  | "time_overlap" // Trùng tiết cùng ngày
-  | "date_overlap" // Trùng khoảng thời gian NBD-NKT
-  | "missing_practical" // Thiếu lớp thực hành
-  | "missing_theory"; // Thiếu lớp lý thuyết
-
 /**
- * DropResult - Kết quả sau khi thả
+ * Kết quả xử lý khi kéo/thả lớp học vào ô thời gian.
  */
 export interface DropResult {
-  /** Thả thành công hay không */
   success: boolean;
-
-  /** Thông báo */
   message: string;
-
-  /** Nếu có nhiều option, danh sách classes để chọn */
   options?: ClassSection[];
-
-  /** Conflict nếu có */
   conflict?: Conflict;
 }
 
 /**
- * FilterOptions - Tùy chọn lọc danh sách môn
+ * Bộ lọc danh sách môn học và lớp học phần.
  */
 export interface FilterOptions {
-  /** Tìm kiếm theo tên môn hoặc mã môn */
   searchQuery: string;
-
-  /** Lọc theo giảng viên */
   lecturerFilter: string;
-
-  /** Chỉ hiện môn chưa đăng ký */
   showUnregisteredOnly: boolean;
-
-  /** Lọc theo loại (lý thuyết/thực hành) */
   classType: "all" | "theory" | "practical";
-
-  /** Lọc theo nhóm đặc biệt (none, ANTT, TTNT, ...) */
   specialGroup?: string;
+  cohortFilter?: string;
+  facultyFilter?: string;
 }
 
 /**
- * HighlightedSlot - Thông tin về slot được highlight khi kéo
+ * Thông tin highlight ô thời gian khi kéo hoặc click chọn môn.
  */
 export interface HighlightedSlot {
-  /** TimeSlot info */
   slot: TimeSlot;
-
-  /** Các ClassSection có thể thả vào slot này */
   availableSections: ClassSection[];
-
-  /** Các ClassSection bị trùng lịch ở slot này */
   conflictingSections?: ClassSection[];
-
-  /** Có conflict với lịch hiện tại không */
   hasConflict: boolean;
 }
 
 /**
- * ExcelHeader - Mapping header từ file Excel
+ * Bảng ánh xạ chỉ số cột từ file Excel TKB.
  */
 export interface ExcelHeaderMapping {
   STT: number;
@@ -249,7 +172,7 @@ export interface ExcelHeaderMapping {
 }
 
 /**
- * Schedule - Đại diện cho một phương án thời khóa biểu
+ * Đại diện cho một phương án thời khóa biểu độc lập.
  */
 export interface Schedule {
   id: string;
@@ -260,61 +183,41 @@ export interface Schedule {
   createdAt: number;
 }
 
-/**
- * ParseResult - Kết quả parse file Excel
- */
-export interface ParseResult {
-  /** Thành công hay không */
-  success: boolean;
-
-  /** Danh sách ClassSection đã parse */
-  sections: ClassSection[];
-
-  /** Danh sách Course đã group */
-  courses: Course[];
-
-  /** Số dòng đã parse */
-  totalRows: number;
-
-  /** Số dòng lỗi */
-  errorRows: number;
-
-  /** Chi tiết lỗi */
-  errors: ParseError[];
-}
-
 export interface ParseError {
-  /** Số dòng lỗi */
   row: number;
-
-  /** Mô tả lỗi */
   message: string;
-
-  /** Dữ liệu dòng lỗi */
   data?: Record<string, unknown>;
 }
 
 /**
- * Period time ranges - Mapping tiết học sang giờ thực tế
- * Tiết 1-5: Sáng (7:30 - 11:30)
- * Nghỉ trưa: 11:30 - 13:00
- * Tiết 6-10: Chiều (13:00 - 17:00)
- * Tiết 11-15: Tối (17:30 - 21:15)
+ * Kết quả phân tích cú pháp dữ liệu file Excel.
+ */
+export interface ParseResult {
+  success: boolean;
+  sections: ClassSection[];
+  courses: Course[];
+  totalRows: number;
+  errorRows: number;
+  errors: ParseError[];
+}
+
+/**
+ * Bảng ánh xạ tiết học sang khung giờ thực tế theo quy định UIT.
  */
 export const PERIOD_TIMES: Record<number, { start: string; end: string }> = {
-  // Sáng - bắt đầu 7:30
+  // Sáng (Tiết 1 - 5)
   1: { start: "07:30", end: "08:15" },
   2: { start: "08:15", end: "09:00" },
   3: { start: "09:00", end: "09:45" },
   4: { start: "09:45", end: "10:30" },
   5: { start: "10:45", end: "11:30" },
-  // Chiều - bắt đầu 13:00, kết thúc 17:00
+  // Chiều (Tiết 6 - 10)
   6: { start: "13:00", end: "13:45" },
   7: { start: "13:45", end: "14:30" },
   8: { start: "14:30", end: "15:15" },
   9: { start: "15:15", end: "16:00" },
   10: { start: "16:15", end: "17:00" },
-  // Tối - các tiết ngoài giờ
+  // Tối (Tiết 11 - 15)
   11: { start: "17:30", end: "18:15" },
   12: { start: "18:15", end: "19:00" },
   13: { start: "19:00", end: "19:45" },
@@ -323,7 +226,7 @@ export const PERIOD_TIMES: Record<number, { start: string; end: string }> = {
 };
 
 /**
- * Day names - Tên các ngày trong tuần
+ * Bảng tên các ngày học trong tuần.
  */
 export const DAY_NAMES: Record<number, string> = {
   2: "Thứ 2",
@@ -335,7 +238,7 @@ export const DAY_NAMES: Record<number, string> = {
 };
 
 /**
- * Color palette cho các môn học (Màu đặc rõ ràng, không bị chỉ hiển thị mỗi viền)
+ * Bảng màu giao diện cho các môn học trên thời khóa biểu.
  */
 export const COURSE_COLORS = [
   "bg-emerald-100 border-emerald-300 text-emerald-950",

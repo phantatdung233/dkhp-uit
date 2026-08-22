@@ -1,9 +1,7 @@
 "use client";
 
 /**
- * FileUpload Component
- * ====================
- * Component upload file Excel hoặc nhập link Google Sheet
+ * Component tải file Excel hoặc nhập link Google Sheets để nạp dữ liệu TKB.
  */
 
 import React, { useState, useCallback, useRef } from "react";
@@ -38,8 +36,12 @@ import { useScheduleStore } from "@/store/schedule-store";
 import type { ParseResult } from "@/types";
 import { cn } from "@/lib/utils";
 
-export function FileUpload() {
-  const [isOpen, setIsOpen] = useState(false);
+interface FileUploadProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function FileUpload({ open, onOpenChange }: FileUploadProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [sheetUrl, setSheetUrl] = useState("");
   const [result, setResult] = useState<ParseResult | null>(null);
@@ -51,9 +53,17 @@ export function FileUpload() {
 
   // Reset state when modal closes
   const handleClose = () => {
-    setIsOpen(false);
+    onOpenChange(false);
     setResult(null);
     setWarnings([]);
+  };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    onOpenChange(isOpen);
+    if (!isOpen) {
+      setResult(null);
+      setWarnings([]);
+    }
   };
 
   // Handle file selection
@@ -173,20 +183,8 @@ export function FileUpload() {
   }, []);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button
-          data-file-upload-trigger
-          variant="outline"
-          size={allSections.length > 0 ? "icon" : "default"}
-          className={allSections.length > 0 ? "" : "gap-2"}
-        >
-          <Upload className="h-4 w-4" />
-          {allSections.length === 0 && <span>Nhập dữ liệu</span>}
-        </Button>
-      </DialogTrigger>
-
-      <DialogContent className="sm:max-w-xl">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="w-[95vw] sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" />

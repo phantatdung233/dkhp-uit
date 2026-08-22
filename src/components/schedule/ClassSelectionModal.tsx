@@ -1,9 +1,7 @@
 "use client";
 
 /**
- * ClassSelectionModal Component
- * =============================
- * Modal hiển thị khi có nhiều lớp cùng giờ để user chọn hoặc thay thế
+ * Modal hiển thị danh sách các lớp học phần cùng khung giờ để người dùng chọn hoặc thay thế lớp trùng.
  */
 
 import React, { useState, useEffect } from "react";
@@ -32,7 +30,6 @@ export function ClassSelectionModal() {
     selectClassFromModal,
   } = useScheduleStore();
 
-  // Buffer data to avoid flicker during close animation
   const [displayData, setDisplayData] = useState<{
     options: ClassSection[];
     slot: { dayOfWeek: number; period: number } | null;
@@ -48,7 +45,7 @@ export function ClassSelectionModal() {
 
   return (
     <Dialog open={isClassSelectionModalOpen} onOpenChange={closeClassSelectionModal}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
@@ -77,8 +74,6 @@ export function ClassSelectionModal() {
     </Dialog>
   );
 }
-
-// ============ Class Option Card ============
 
 interface ClassOptionProps {
   section: ClassSection;
@@ -165,6 +160,21 @@ function ClassOption({ section, onSelect }: ClassOptionProps) {
           {section.startDate && <span>{format(section.startDate, "dd/MM/yyyy", { locale: vi })}</span>}
           {section.startDate && section.endDate && <span>→</span>}
           {section.endDate && <span>{format(section.endDate, "dd/MM/yyyy", { locale: vi })}</span>}
+        </div>
+      )}
+
+      {(section.faculty || section.cohort) && (
+        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+          {section.faculty && (
+            <Badge variant="outline" className="text-[10px] bg-blue-50/50 text-blue-700 border-blue-200">
+              Khoa {section.faculty}
+            </Badge>
+          )}
+          {section.cohort && (
+            <Badge variant="outline" className="text-[10px] bg-purple-50/50 text-purple-700 border-purple-200">
+              Khoá {section.cohort}
+            </Badge>
+          )}
         </div>
       )}
 

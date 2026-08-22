@@ -1,12 +1,8 @@
 "use client";
 
 /**
- * ScheduledClassesOverlay Component
- * ==================================
- * Overlay hiển thị các lớp học đã được xếp vào lịch trên CalendarGrid.
- *
- * Xử lý overlap: Khi nhiều lớp trùng tiết cùng ngày, chúng được chia cột
- * ngang (giống Google Calendar) để tất cả đều hiển thị và tương tác được.
+ * Component hiển thị các lớp học đã xếp lên lưới thời khóa biểu.
+ * Tự động chia cột khi có các lớp trùng giờ trong cùng một ngày theo thuật toán Greedy Interval Graph Coloring.
  */
 
 import React, { useMemo, useState } from "react";
@@ -19,31 +15,16 @@ import { ScheduledClassCard, ClassDetailContent } from "./ScheduledClassCard";
 import type { ScheduledClass } from "@/types";
 import { COURSE_COLORS } from "@/types";
 
-// Constants
-const DAYS = [2, 3, 4, 5, 6, 7]; // Thứ 2 - Thứ 7
-const CELL_HEIGHT = 48; // px
-
-// ============ Overlap Layout Algorithm ============
+const DAYS = [2, 3, 4, 5, 6, 7];
+const CELL_HEIGHT = 48;
 
 interface LayoutInfo {
-  /** Which column this card occupies (0-based) within its overlap group */
   column: number;
-  /** Total number of columns in this card's overlap group */
   totalColumns: number;
 }
 
 /**
- * Compute column layout for overlapping scheduled classes on a given day.
- *
- * Algorithm (greedy interval graph colouring):
- *  1. Sort classes by startPeriod then by periodCount (longer first).
- *  2. Maintain a list of "column end times". For each class, find the first
- *     column whose end time ≤ class.startPeriod. If none, open a new column.
- *  3. After assignment, propagate the maximum column count to every class
- *     that overlaps with any other class in the same connected group so they
- *     all share the same width.
- *
- * Returns a Map from scheduledClass.id → LayoutInfo.
+ * Tính toán bố cục phân chia cột cho các lớp học trùng giờ trên cùng một thứ.
  */
 function computeOverlapLayout(classes: ScheduledClass[]): Map<string, LayoutInfo> {
   const result = new Map<string, LayoutInfo>();
@@ -174,7 +155,7 @@ export function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDay
 
   return (
     <>
-      <div className="absolute inset-0 pointer-events-none z-10 left-14 sm:left-20">
+      <div className="absolute inset-0 pointer-events-none z-10 left-12 sm:left-16 md:left-20">
         {scheduledClasses.map((scheduledClass) => {
           const section = scheduledClass.classSection;
 
@@ -206,7 +187,7 @@ export function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDay
 
           return (
             <React.Fragment key={scheduledClass.id}>
-              {/* Desktop card */}
+              {/* Desktop / Tablet card */}
               <ScheduledClassCard
                 scheduledClass={scheduledClass}
                 className="hidden md:block"
@@ -220,6 +201,10 @@ export function ScheduledClassesOverlay({ scheduledClasses, onRemove, visibleDay
                 }}
                 colorClass={colorClass}
                 onRemove={() => onRemove(scheduledClass.id)}
+                onClick={() => {
+                  setSelectedClassForDetail(scheduledClass);
+                  setIsDetailOpen(true);
+                }}
               />
               {/* Mobile card */}
               {mobileDayIndex !== -1 && (
